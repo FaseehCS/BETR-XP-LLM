@@ -232,6 +232,10 @@ class WorldInterface(BaseWorldInterface):
         """ Pick up an object """
         return self.controller.step(action='PickupObject', objectId=target_object)
     
+    def drop(self):
+        """ Drop the object held by the robot """
+        return self.controller.step(action='DropHandObject')
+    
     def place_obj(self, target_object, position):
         """ Place an object at a specific location """
         if self.grasped_object == target_object:
