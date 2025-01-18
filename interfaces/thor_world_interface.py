@@ -12,7 +12,7 @@ torch.set_grad_enabled(False)
 torch.manual_seed(0)
 
 from reflect.main.get_local_sg import get_2d_bbox_from_3d_pcd
-from reflect.main.point_cloud_utils import *
+# from reflect.main.point_cloud_utils import *
 import open3d as o3d
 from PIL import Image
 from reflect.main.utils import *
@@ -30,8 +30,9 @@ ROTATIONS = {
 }
 
 
-def gen_node(name, event, obj_held_prev=False):
-    object_id = event.metadata['objects'].index(name)
+def gen_node(obj, event, obj_held_prev=False):
+    name = obj['name']
+    object_id = obj['objectId']
     height, width, channel = event.frame.shape
     camera_space_xyz = depth_frame_to_camera_space_xyz(
             depth_frame=torch.as_tensor(event.depth_frame.copy()), mask=None, fov=event.metadata['fov'])
@@ -53,7 +54,6 @@ def gen_node(name, event, obj_held_prev=False):
 
     if object_id.split("|")[0] in ["Window", "Floor", "Wall", "Ceiling", "Cabinet"]:
         return None
-    label = object_id
 
     # register this box in 3D
     mask = event.instance_masks[object_id].reshape(height, width)
@@ -71,32 +71,32 @@ def gen_node(name, event, obj_held_prev=False):
     voxel_down_pcd = obj_pcd.voxel_down_sample(voxel_size=0.01)
 
     # denoise point cloud
-    if "Pan" == label.split("|")[0] or "EggCracked" == label.split("|")[0] or "Bowl" == label.split("|")[0] or "Pot" == label.split("|")[0]:
+    if "Pan" == object_id.split("|")[0] or "EggCracked" == object_id.split("|")[0] or "Bowl" == object_id.split("|")[0] or "Pot" == object_id.split("|")[0]:
         _, ind = voxel_down_pcd.remove_radius_outlier(nb_points=30, radius=0.03)
         inlier = voxel_down_pcd.select_by_index(ind)
         pcd_obj = torch.tensor(np.array(inlier.points))
-    elif "CounterTop" == label.split("|")[0]:
+    elif "CounterTop" == object_id.split("|")[0]:
         _, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=0.1)
         inlier = voxel_down_pcd.select_by_index(ind)
         pcd_obj = torch.tensor(np.array(inlier.points))
-    elif "SinkBasin" in label:
+    elif "SinkBasin" in object_id:
         sinkbasin_pts = torch.tensor(np.array(voxel_down_pcd.points))
     else:
         pcd_obj = torch.tensor(np.array(voxel_down_pcd.points))
-        # assert points[label].shape == colors[label].shape
+        # assert points[object_id].shape == colors[object_id].shape
     #==============================================================
 
     total_points = pcd_obj
 
-    if is_receptacle(label, event):
-        if is_moving(label, event) or is_picked_up(label, event) or obj_held_prev == label:
+    if is_receptacle(object_id, event):
+        if is_moving(object_id, event) or is_picked_up(object_id, event) or obj_held_prev == object_id:
             total_points = pcd_obj
         else:
             total_points = torch.unique(torch.cat((total_points, pcd_obj), 0), dim=0)
     else:
         total_points = pcd_obj
 
-    if label.split("|")[0] == "Sink" and sinkbasin_pts is not None:
+    if object_id.split("|")[0] == "Sink" and sinkbasin_pts is not None:
         total_points = torch.unique(torch.cat((total_points, sinkbasin_pts), 0), dim=0)
 
     boxes3d_pts = o3d.utility.Vector3dVector(total_points)
@@ -104,11 +104,11 @@ def gen_node(name, event, obj_held_prev=False):
 
     # Generate local scene graph
     total_points_dict = {}
-    total_points_dict[label] = total_points
-    bbox = get_2d_bbox_from_3d_pcd(event, label, total_points_dict)
+    total_points_dict[object_id] = total_points
+    bbox = get_2d_bbox_from_3d_pcd(event, object_id, total_points_dict)
     if name is not None and bbox is not None:
         node = Node(name, 
-                    object_id=label, 
+                    object_id=object_id, 
                     pos3d=box.get_center(), 
                     corner_pts=np.array(box.get_box_points()), 
                     bbox2d=bbox, 
@@ -149,8 +149,9 @@ class WorldInterface(BaseWorldInterface):
     
     def __init__(self, scene='FloorPlan1', movable_objects=[], graspable_objects=[], gridSize=0.25):
         self.gridSize = gridSize
-        self.grid = createGraph
-        self.controller = Controller(agentMode="default", visibilityDistance=1.0, scene=scene, gridSize=self.gridSize, rotateStepDegrees=45.0)
+        self.grid = np.mgrid[min:max:gridSize, min:max:gridSize].transpose(1,2,0)
+        self.controller = Controller(agentMode="arm", visibilityDistance=1.0, scene=scene, gridSize=self.gridSize, rotateStepDegrees=45.0)
+        self.controller.step(action="SetHandSphereRadius", radius=0.1)
         self.graspable_objects = graspable_objects
         self.movable_objects = movable_objects
         self.scene_graph = SceneGraph(event=self.controller.last_event, task=None)
@@ -191,19 +192,39 @@ class WorldInterface(BaseWorldInterface):
 
             if obj['object_id'] not in self.scene_graph_nodes:
                 if obj['visible']:
-                    # node = gen_node(obj['object_id'], event, obj['object_id'] in self.held_prev)
-                    node = Node(obj['name'], object_id=obj['objectId'])
+                    node = gen_node(obj, event, obj['object_id'] in self.held_prev) # Reflects Scene Graph
+                    # node = Node(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
                     self.scene_graph.add_node_wo_edge(node)
                     if node is not None:
                         self.scene_graph.add_node(node)
-                    self.object_positions[obj[obj['object_id']]] = self.dict_to_pos(obj['position'])
-                    self.object_position_known[obj[obj['object_id']]] = True
+                    self.object_positions[obj['object_id']] = self.dict_to_pos(obj['position'])
+                    self.object_position_known[obj['object_id']] = True
                 else:
-                    self.object_position_known[obj[obj['object_id']]] = False
+                    self.object_position_known[obj['object_id']] = False
+                    
+    def get_id(self, obj_name):
+        """ Get the object id from the object name """
+        for obj in self.controller.last_event.metadata['objects']:
+            if obj['name'] == obj_name:
+                return obj['object_id']
+        return None
+    
+    def get_name(self, obj_id):
+        """ Get the object name from the object id """
+        for obj in self.controller.last_event.metadata['objects']:
+            if obj['object_id'] == obj_id:
+                return obj['name']
+        return None
+    
+    def get_obj(self, obj_id):
+        """ Get the object from the object id """
+        return next(obj for obj in self.controller.last_event.metadata['objects'] if obj["object_id"] == obj_id)
     
     def get_position(self, target_object):
-        target_id = self.controller.last_event.metadata['objects'].index(target_object)
-        return self.controller.last_event.metadata['objects'][target_id]['position']
+        """ Get the position of an object """
+        for obj in self.controller.last_event.metadata['objects']:
+            if obj['object_id'] == target_object:
+                return obj['position']
     
     def is_near_robot(self, target_object, distance=0.6):
         """ Checks if object is within reach """
@@ -222,19 +243,31 @@ class WorldInterface(BaseWorldInterface):
     def rotate(self, rotation, degrees=90):
         """ Rotate the robot in the specified direction """
         return self.controller.step(action=ROTATIONS[rotation], degrees=degrees)
+
+    def move_linear(self, position, orientation=None, _target_object=None):
+        """ Move the arm end-effector to a specific location """
+        return self.controller.step(action="MoveArm",
+                                    position=position,
+                                    rotation=orientation,
+                                    coordinateSpace="world",
+                                    restrictMovement=False,
+                                    speed=1,
+                                    returnToStart=False,
+                                    fixedDeltaTime=0.02
+                                )
     
-    def navigate_to(self, target_object):
+    def teleport_to(self, target_object):
         """ Navigate to a specific object """
         position = self.get_position(target_object)
         return self.controller.step(action="Teleport", position=position)
     
     def pick_up(self, target_object):
         """ Pick up an object """
-        return self.controller.step(action='PickupObject', objectId=target_object)
+        return self.controller.step(action='PickupObject', objectIdCandidates=target_object)
     
     def drop(self):
         """ Drop the object held by the robot """
-        return self.controller.step(action='DropHandObject')
+        return self.controller.step(action='ReleaseObject')
     
     def place_obj(self, target_object, position):
         """ Place an object at a specific location """
@@ -255,20 +288,17 @@ class WorldInterface(BaseWorldInterface):
     def put_in(self, target_object, receptacle):
         """ Put an object in another object """
         
-        if len(self.controller.last_event.metadata['objects'][receptacle]['receptacleObjectIds']) > 0:
+        receptacle_obj = self.get_obj(receptacle)
+        target_obj = self.get_obj(target_object)
+        target_obj_type = target_obj['objectType']
+        src_obj = self.controller.last_event.metadata['arm']['heldObjects'][0] if len(self.controller.last_event.metadata['arm']['heldObjects']) > 0 else None
+
+        if len(receptacle_obj['receptacleObjectIds']) > 0:
             print("[ERROR] Receptacle is already occupied")
             return None
-        placing_position = self.controller.step(action="", objectId=receptacle)
-        # return self.place_obj(target_object, placing_position)
     
         print(f"[INFO] Execute action: Putting {target_object} in {receptacle}")
 
-        src_obj = None
-        target_obj_type = self.controller.last_event.metadata['objects'][target_object]['objectType']
-        for obj in self.controller.last_event.metadata["objects"]:
-            if obj['isPickedUp']:
-                src_obj = obj
-                break
         if src_obj is None:
             print("The robot is not holding anything")
         elif src_obj['objectType'] != target_obj_type:
@@ -280,7 +310,6 @@ class WorldInterface(BaseWorldInterface):
         if target_obj_type == 'Sink':
             target_obj_type = 'SinkBasin'
 
-        receptacle_obj = self.controller.last_event.metadata['objects'][receptacle]    
         receptacle_pos = receptacle_obj['position']
 
         # if navigation is required
@@ -351,11 +380,12 @@ class WorldInterface(BaseWorldInterface):
     
     def navigate_to_obj(self, target_object, counter=0):
         print("[INFO] Execute action: Navigate to", target_object)
-        obj = self.controller.last_event.metadata['objects'][target_object]
+        target_obj = self.get_obj(target_object)
+        self.nav_actions = {}
 
         # BFS search for poth
         reachable_points = self.controller.step(action="GetReachablePositions").metadata['actionReturn']
-        closest_pos = closest_position(obj["position"], reachable_points)
+        closest_pos = closest_position(target_obj["position"], reachable_points)
         robot_pos = self.controller.last_event.metadata['agent']['position']
         target_pos_val = [closest_pos['x'], closest_pos['z']]
         # print("robot_pos, target_pos, closest_to_target_pos: ", robot_pos, target_pos_val, closest_pos)
@@ -378,7 +408,6 @@ class WorldInterface(BaseWorldInterface):
             self.controller.step(action="Done")
             return
 
-        start_frame = counter + 1
         for p in path:
             x = self.grid[p.x,p.y][0]
             z = self.grid[p.x,p.y][1]
@@ -392,15 +421,9 @@ class WorldInterface(BaseWorldInterface):
                 standing=True
             )
             self.controller.step(action="Done")
-            for o in self.controller.last_event.metadata['objects']:
-                if o['isPickedUp'] == True:
-                    obj_in_hand = True
-                    break
+            self.grasped_object = self.controller.last_event.metadata['arm']['heldObjects'][0]['objectId'] if len(self.controller.last_event.metadata['arm']['heldObjects']) > 0 else None
 
-        robot_pos = self.controller.last_event.metadata['agent']['position']
-        self.look_at(target_pos=obj["position"], robot_pos=robot_pos)
-        end_frame = counter
-        self.nav_actions[(start_frame, end_frame)] = 'Move to ' + obj['name'].lower()
+        self.look_at(target_pos=target_obj["position"], robot_pos=robot_pos)
         self.controller.step(action="Done")
         
     def look_at(self, target_pos, center_to_camera_disp=0.6):
@@ -493,7 +516,8 @@ class WorldInterface(BaseWorldInterface):
             print("target object id is not specified.")
         else:
             print("target object id:", target_obj_id)
-        target_obj_type = self.controller.last_event.metadata['objects'][target_obj_id]['objectType']
+        target_obj = self.get_obj(target_obj_id)
+        target_obj_type = target_obj['objectType']
         if target_obj_type in NAME_MAP:
             target_obj_type_in_sim = NAME_MAP[target_obj_type]
         src_obj_type, src_obj_id = src_obj['objectType'], src_obj['objectId']
@@ -518,7 +542,6 @@ class WorldInterface(BaseWorldInterface):
                         target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["name"] == obj_unity_name)
                         target_objs.append((0, target_obj))
         else: # target_obj_id is specified
-            target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == target_obj_id)
             target_objs.append((0, target_obj))
 
         # check if target object is in view
