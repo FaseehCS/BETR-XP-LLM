@@ -544,7 +544,7 @@ class Navigate(ActionBehavior):
         self.internal_state = self.NavigateStates.INIT
         self.target_object = parameters["target_object"]
         
-        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
+        preconditions = []
         postconditions = [NearRobot('', {"target_object": self.target_object}, world_interface)]
         
         name = Navigate.to_string(parameters)
