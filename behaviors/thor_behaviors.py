@@ -5,7 +5,6 @@ from behaviors.common_behaviors import Behavior, ActionBehavior
 import behaviors.common_behaviors
 import py_trees as pt
 
-from reflect.main.action_primitives import *
 from interfaces.thor_world_interface import WorldInterface
 
 def get_node(node_descriptor, world_interface, verbose = False):
@@ -342,19 +341,9 @@ class Grasp(ActionBehavior):
                     return self.failure()
                 self.calc_approach_position()
 
-                positioning_program = self.world_interface.move_linear(self.grasp_position, self.orientation, self.target_object)
-                if positioning_program is None:
-                    return self.failure()
-                # gripper_program = self.world_interface.get_close_gripper_program()
-                pick_program = self.world_interface.pickup_program
+                pick_program = self.world_interface.pick_up
 
-                lift_program = self.world_interface.move_linear(self.approach_position, self.orientation, self.target_object)
-
-                self.full_grasping_program = self.world_interface.finalize_program(open_gripper_program +
-                                                                              approach_program +
-                                                                              positioning_program +
-                                                                              gripper_program +
-                                                                              lift_program)
+                self.full_grasping_program = self.world_interface.finalize_program(pick_program)
             if self.internal_state == self.GraspStates.WAITING_FOR_STOP:
                 if self.world_interface.has_stopped():
                     if not self.world_interface.run_program(self.full_grasping_program):
@@ -559,4 +548,5 @@ class Navigate(Behavior):
                                         "relative_object": parameters["relative_object"]},
                                 world_interface)]
         
-        # navigate_to_obj(task, object_type)
+    def update(self):
+        raise NotImplementedError
