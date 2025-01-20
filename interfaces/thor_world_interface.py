@@ -10,7 +10,8 @@ import torch
 torch.set_grad_enabled(False)
 torch.manual_seed(0)
 
-from reflect.main.scene_graph import SceneGraph as BaseSceneGraph, Node, Edge
+from reflect.main.scene_graph import SceneGraph as BaseSceneGraph
+import reflect.main.scene_graph as SceneObject
 from reflect.main.action_primitives import *
 from reflect.main.get_local_sg import get_2d_bbox_from_3d_pcd
 from reflect.main.utils import *
@@ -104,7 +105,7 @@ def gen_node(obj, event, obj_held_prev=False):
     total_points_dict[object_id] = total_points
     bbox = get_2d_bbox_from_3d_pcd(event, object_id, total_points_dict)
     if name is not None and bbox is not None:
-        node = Node(name, 
+        node = SceneObject.Node(name, 
                     object_id=object_id, 
                     pos3d=box.get_center(), 
                     corner_pts=np.array(box.get_box_points()), 
@@ -139,22 +140,30 @@ class SceneGraph(BaseSceneGraph):
                    relation = 'at'
                    
         if relation is not None:
-            self.edges[(target_object, relative_object)] = Edge(target_object, relative_object, relation)
+            self.edges[(target_object, relative_object)] = SceneObject.Edge(target_object, relative_object, relation)
 
 
 class WorldInterface(BaseWorldInterface):
-    
+
     def __init__(self, scene='FloorPlan1', movable_objects=[], graspable_objects=[], gridSize=0.25):
         self.gridSize = gridSize
-        # self.grid = np.mgrid[min:max:gridSize, min:max:gridSize].transpose(1,2,0)
-        self.controller = Controller(agentMode="arm", visibilityDistance=1.0, scene=scene, gridSize=self.gridSize, rotateStepDegrees=90)
         self.grid = np.mgrid[-5:5.1:gridSize, -5:5.1:gridSize].transpose(1,2,0)
+        self.controller = Controller(
+            agentMode="arm",
+            visibilityDistance=1.0,
+            scene=scene,
+            gridSize=self.gridSize,
+            renderDepthImage=True,
+            renderInstanceSegmentation=True,
+            rotateStepDegrees=90,
+        )
         self.controller.step(action="SetHandSphereRadius", radius=0.1)
+
         self.graspable_objects = graspable_objects
         self.movable_objects = movable_objects
         self.scene_graph = SceneGraph(event=self.controller.last_event, task=None)
         self.scene_graph_nodes = [node.name for node in self.scene_graph.total_nodes]
-        
+
         self.grasped_object = None
         self.manipulation_target = None
         self.object_positions = {}
@@ -163,10 +172,11 @@ class WorldInterface(BaseWorldInterface):
         self.object_opened = {}
         self.object_unlocked = {}
         self.held_prev = []
+        self.get_feedback()
 
         self.error_message = ''
         self.failed_behavior = ''
-        
+
     def get_feedback(self):
         event = self.controller.last_event
         self.robot_position = self.controller.last_event.metadata['agent']['position']
@@ -174,25 +184,25 @@ class WorldInterface(BaseWorldInterface):
 
         self.color_frame = self.controller.last_event.cv2img
         self.depth_frame = self.controller.last_event.depth_frame
-        
+
         for obj in self.controller.last_event.metadata['objects']:   
             if obj['pickupable']:
                 self.graspable_objects.append(obj['objectId'])
                 if obj['isPickedUp']:
                     self.grasped_object = obj['objectId']
                     self.held_prev.append(obj['objectId'])
-            if obj['movable']:
+            if obj['moveable']:
                 self.movable_objects.append(obj['objectId'])                
             if obj['toggleable']:
                 self.object_unlocked[obj['objectId']] = obj['isToggled']
             if obj['openable']:
-                self.object_opened[obj['objectId']] = obj['isOpened']
+                self.object_opened[obj['objectId']] = obj['isOpen']
 
             if obj['objectId'] not in self.scene_graph_nodes:
-                
+
                 if obj['visible'] or obj['objectId'] in self.object_position_known.keys():
                     node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
-                    # node = Node(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
+                    # node = SceneObject.Node(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
                     self.scene_graph.add_node_wo_edge(node)
                     if node is not None:
                         self.scene_graph.add_node(node)
@@ -206,31 +216,31 @@ class WorldInterface(BaseWorldInterface):
                     self.object_position_known[obj['objectId']] = False
 
         return True
-                    
+
     def get_id(self, obj_name):
         """ Get the object id from the object name """
         for obj in self.controller.last_event.metadata['objects']:
             if obj_name in obj['name']:
                 return obj['objectId']
         return None
-    
+
     def get_name(self, obj_id):
         """ Get the object name from the object id """
         for obj in self.controller.last_event.metadata['objects']:
             if obj['objectId'] == obj_id:
                 return obj['name']
         return None
-    
+
     def get_obj(self, obj_id):
         """ Get the object from the object id """
         return next(obj for obj in self.controller.last_event.metadata['objects'] if obj["objectId"] == obj_id)
-    
+
     def get_position(self, target_object):
         """ Get the position of an object """
         for obj in self.controller.last_event.metadata['objects']:
             if obj['objectId'] == target_object:
                 return obj['position']
-    
+
     def is_near_robot(self, target_object, distance=0.6):
         """ Checks if object is within reach """
         if target_object in self.controller.last_event.metadata['objects']:
@@ -238,14 +248,14 @@ class WorldInterface(BaseWorldInterface):
                 self.calc_distance(target_object, self.dict_to_pos(self.robot_position)) < distance:
                 return True
         return False
-    
+
     def object_at(self, target_object, relation, relative_object):
         return relation == self.scene_graph.edges[(target_object, relative_object)].edge_type
-    
+
     def move(self, direction, magnitude=0.25):
         """ Move one step in the specified direction """
         return self.controller.step(action=DIRECTIONS[direction], moveMagnitude=magnitude)
-    
+
     def rotate(self, rotation, degrees=90):
         """ Rotate the robot in the specified direction """
         return self.controller.step(action=ROTATIONS[rotation], degrees=degrees)
@@ -261,7 +271,7 @@ class WorldInterface(BaseWorldInterface):
                                     returnToStart=False,
                                     fixedDeltaTime=0.02
                                 )
-        
+
     def move_cfree(self, position, orientation=None):
         """ Move the arm end-effector to a specific location along a collision-free path """
         return self.controller.step(action="MoveArm",
@@ -273,33 +283,33 @@ class WorldInterface(BaseWorldInterface):
                                     returnToStart=True,
                                     fixedDeltaTime=0.02
                                 )
-    
+
     def teleport_to(self, target_object):
         """ Navigate to a specific object """
         position = self.get_position(target_object)
         return self.controller.step(action="Teleport", position=position)
-    
+
     def pick_up(self, target_object):
         """ Pick up an object """
         return self.controller.step(action='PickupObject', objectIdCandidates=target_object)
-    
+
     def drop(self):
         """ Drop the object held by the robot """
         return self.controller.step(action='ReleaseObject')
-    
+
     def place_obj(self, target_object, position):
         """ Place an object at a specific location """
         if self.grasped_object == target_object:
             return self.controller.step(action='PlaceObjectAtPoint', objectId=target_object, position=position)
-    
+
     def put_on(self, target_object, receptacle):
         """ Put an object on another object """
         placing_position = self.controller.step(action="GetSpawnCoordinatesAboveReceptacle", objectId=receptacle).metadata['actionReturn']
         return self.place_obj(target_object, placing_position)
-    
+
     def put_in(self, target_object, receptacle):
         """ Put an object in another object """
-        
+
         receptacle_obj = self.get_obj(receptacle)
         target_obj = self.get_obj(target_object)
         target_obj_type = target_obj['objectType']
@@ -308,7 +318,7 @@ class WorldInterface(BaseWorldInterface):
         if len(receptacle_obj['receptacleObjectIds']) > 0:
             print("[ERROR] Receptacle is already occupied")
             return None
-    
+
         print(f"[INFO] Execute action: Putting {target_object} in {receptacle}")
 
         if src_obj is None:
@@ -337,7 +347,7 @@ class WorldInterface(BaseWorldInterface):
             print("Microwave already contains an object: ", receptacle_obj['receptacleObjectIds'])
             e = self.controller.last_event
             return
-        
+
         if target_obj_type == 'Toaster' and receptacle_obj['isToggled']:
             place_obj_in_small_receptacle(receptacle_pos)
         else:
@@ -355,43 +365,43 @@ class WorldInterface(BaseWorldInterface):
                     print("thor put_obj did not work, try place obj in small recetacle primitive")
                     if target_obj_type not in ["CoffeeMachine", "Microwave"]:
                         place_obj_in_small_receptacle(receptacle_pos)
-                        
+
         return self.controller.step(action="Done")
-    
+
     def toggle_on(self, target_object):
         """ Toggle an object on """
         return self.controller.step(action='ToggleObjectOn', objectId=target_object)
-    
+
     def toggle_off(self, target_object):
         """ Toggle an object off """
         return self.controller.step(action='ToggleObjectOff', objectId=target_object)
-    
+
     def open_obj(self, target_object):
         """ Open an object """
         return self.controller.step(action='OpenObject', objectId=target_object)
-    
+
     def close_obj(self, target_object):
         """ Close an object """
         return self.controller.step(action='CloseObject', objectId=target_object)
-    
+
     def fill_obj(self, target_object, liquid):
         """ Fill an object with liquid """
         return self.controller.step(action='FillObjectWithLiquid', objectId=target_object, receptacleObjectId=liquid)
-    
+
     def crack_obj(self, target_object):
         """ Crack an object """
         return self.controller.step(action='BreakObject', objectId=target_object)
-    
+
     def slice_obj(self, target_object):
         """ Slice an object """
         return self.controller.step(action='SliceObject', objectId=target_object)
-    
+
     def pos_to_dict(self, pos):
         return {'x': pos[0], 'y': pos[1], 'z': pos[2]}
-    
+
     def dict_to_pos(self, pos):
         return np.array([pos['x'], pos['y'], pos['z']])
-    
+
     def navigate_to_obj(self, target_object, counter=0):
         print("[INFO] Execute action: Navigate to", target_object)
         target_obj = self.get_obj(target_object)
@@ -440,7 +450,7 @@ class WorldInterface(BaseWorldInterface):
 
         self.look_at(target_pos=target_obj["position"], robot_pos=robot_pos)
         return self.controller.step(action="Done")
-        
+
     def look_at(self, target_pos, center_to_camera_disp=0.6):
         robot_pos = self.controller.last_event.metadata['agent']['position']
         robot_y = robot_pos['y'] + center_to_camera_disp
@@ -471,13 +481,13 @@ class WorldInterface(BaseWorldInterface):
                 degrees=-final_tilt
             )
         return self.controller.step(action="Done")
-            
+
     def place_obj_in_small_receptacle(self, place_location):
         print("[INFO] Running primitive to place object in small receptacle")
         robot_pos = self.controller.last_event.metadata['agent']['position']
         tilt = self.controller.last_event.metadata['agent']['cameraHorizon']
         dist = np.sqrt((robot_pos['x'] - place_location['x'])**2 + (robot_pos['z'] - place_location['z'])**2)
-        #print("tilt, dist: ", tilt, dist)
+        # print("tilt, dist: ", tilt, dist)
         tilt = np.round(tilt, 1)
         dist = np.round(dist, 1) - 0.4
         # Look straight (tilt = 0)
@@ -491,7 +501,7 @@ class WorldInterface(BaseWorldInterface):
                 action="LookDown",
                 degrees=tilt
             )
-        #print("Look: ", e)
+        # print("Look: ", e)
         self.controller.step(action="Done")
 
         # Move object over receptacle
@@ -501,15 +511,15 @@ class WorldInterface(BaseWorldInterface):
             forceVisible=False
         )
         self.controller.step(action='Done')
-        #print("move object: ", e)
-        
+        # print("move object: ", e)
+
         # Drop object
         e = self.controller.step(
             action="DropHandObject",
             forceAction=False
         )
         self.controller.step(action='Done')
-        #print("drop object: ", e)
+        # print("drop object: ", e)
 
         # Look at the receptacle again
         if tilt > 0:
@@ -522,9 +532,9 @@ class WorldInterface(BaseWorldInterface):
                 action="LookUp",
                 degrees=tilt
             )
-        #print("Look: ", e)
+        # print("Look: ", e)
         return self.controller.step(action="Done")
-        
+
     def place_obj_on_large_receptacle(self, src_obj, target_obj_id, thresh=0.8):
         print("[INFO] Running primitive to place object on large receptacle")
         if target_obj_id is None:
@@ -539,7 +549,7 @@ class WorldInterface(BaseWorldInterface):
         src_obj_type_in_sim = src_obj_type
         if src_obj_type in NAME_MAP:
             src_obj_type_in_sim = NAME_MAP[src_obj_type]
-        
+
         target_objs = []
         if target_obj_id is None:
             if "-" not in target_obj_type:
@@ -568,7 +578,7 @@ class WorldInterface(BaseWorldInterface):
                 objectId=target_obj_id,
                 anywhere=False
             )
-            #print("spawnPoints: ", e)
+            # print("spawnPoints: ", e)
             if e.metadata['lastActionSuccess'] and len(e.metadata['actionReturn']) > 0:
                 found_obj = True
                 print("receptacle found in current view")
@@ -594,7 +604,7 @@ class WorldInterface(BaseWorldInterface):
         time.sleep(1)
         place_locations = e.metadata['actionReturn']
         # print("total potential place points: ", len(place_locations))
-        
+
         # find valid locations on the receptacle to put object
         placed = False
         visible = False
@@ -629,10 +639,10 @@ class WorldInterface(BaseWorldInterface):
                 placed = True
             if src_obj['visible']:
                 visible = True
-        
+
         self.look_at(robot_pos, place_location)
         return self.controller.step(action="Done")
-        
+
     def run_program(self, programs):
         """ Run an action """
         try:

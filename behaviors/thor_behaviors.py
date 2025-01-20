@@ -244,8 +244,8 @@ class Grasp(ActionBehavior):
         self.orientation = None
         self.internal_state = self.GraspStates.INIT
         self.full_grasping_program = ''
-        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
-        postconditions = []
+        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
+                         NearRobot('', {"target_object": parameters["target_object"]}, world_interface)]
         if world_interface.is_graspable(parameters["target_object"]) or parameters["target_object"] == '"any object"':
             postconditions = [Grasped('', {"target_object": parameters["target_object"]}, world_interface)]
             relation = parameters.get("relation")
