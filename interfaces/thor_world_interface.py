@@ -3,20 +3,17 @@
 from interfaces.base_world_interface import BaseWorldInterface
 from ai2thor.controller import Controller
 import numpy as np
-from reflect.main.scene_graph import SceneGraph as BaseSceneGraph
-from reflect.main.scene_graph import Node, Edge
-from reflect.main.action_primitives import *
+from PIL import Image
+import open3d as o3d
 
 import torch
 torch.set_grad_enabled(False)
 torch.manual_seed(0)
 
+from reflect.main.scene_graph import SceneGraph as BaseSceneGraph, Node, Edge
+from reflect.main.action_primitives import *
 from reflect.main.get_local_sg import get_2d_bbox_from_3d_pcd
-# from reflect.main.point_cloud_utils import *
-import open3d as o3d
-from PIL import Image
 from reflect.main.utils import *
-from reflect.main.task_utils import *
 
 DIRECTIONS = {
     'w' : "MoveAhead",
