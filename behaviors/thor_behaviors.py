@@ -562,8 +562,6 @@ class Navigate(ActionBehavior):
         ActionBehavior.initialise(self)
         if self.world_interface.is_near_robot(self.parameters["target_object"], distance=0.6):
             self.success()
-
-    @staticmethod
     
     def check_for_success(self):
         """Check if object is at target position."""
@@ -621,9 +619,7 @@ class Open(ActionBehavior):
                 self.success()
         else:
             self.failure()
-            
-    @staticmethod
-    
+                
     def check_for_success(self):
         """Check if object is opened."""
         if self.world_interface.object_opened[self.target_object]:
@@ -642,3 +638,12 @@ class Open(ActionBehavior):
                 self.failure()
                     
         return self.state
+    
+def get_condition_nodes():
+    """ Returns a list of all action nodes available for planning """
+    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked]
+
+
+def get_action_nodes():
+    """ Returns a list of all action nodes available for planning """
+    return [Grasp, Place, Navigate]

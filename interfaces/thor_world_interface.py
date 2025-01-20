@@ -147,8 +147,8 @@ class WorldInterface(BaseWorldInterface):
     def __init__(self, scene='FloorPlan1', movable_objects=[], graspable_objects=[], gridSize=0.25):
         self.gridSize = gridSize
         # self.grid = np.mgrid[min:max:gridSize, min:max:gridSize].transpose(1,2,0)
-        self.grid = np.mgrid[0:10:gridSize, 0:10:gridSize].transpose(1,2,0)
         self.controller = Controller(agentMode="arm", visibilityDistance=1.0, scene=scene, gridSize=self.gridSize, rotateStepDegrees=90)
+        self.grid = np.mgrid[-5:5.1:gridSize, -5:5.1:gridSize].transpose(1,2,0)
         self.controller.step(action="SetHandSphereRadius", radius=0.1)
         self.graspable_objects = graspable_objects
         self.movable_objects = movable_objects
@@ -177,53 +177,58 @@ class WorldInterface(BaseWorldInterface):
         
         for obj in self.controller.last_event.metadata['objects']:   
             if obj['pickupable']:
-                self.graspable_objects.append(obj['object_id'])
+                self.graspable_objects.append(obj['objectId'])
                 if obj['isPickedUp']:
-                    self.grasped_object = obj['object_id']
-                    self.held_prev.append(obj['object_id'])
+                    self.grasped_object = obj['objectId']
+                    self.held_prev.append(obj['objectId'])
             if obj['movable']:
-                self.movable_objects.append(obj['object_id'])                
+                self.movable_objects.append(obj['objectId'])                
             if obj['toggleable']:
-                self.object_unlocked[obj['object_id']] = obj['isToggled']
+                self.object_unlocked[obj['objectId']] = obj['isToggled']
             if obj['openable']:
-                self.object_opened[obj['object_id']] = obj['isOpened']
+                self.object_opened[obj['objectId']] = obj['isOpened']
 
-            if obj['object_id'] not in self.scene_graph_nodes:
-                if obj['visible']:
-                    node = gen_node(obj, event, obj['object_id'] in self.held_prev) # Reflects Scene Graph
+            if obj['objectId'] not in self.scene_graph_nodes:
+                
+                if obj['visible'] or obj['objectId'] in self.object_position_known.keys():
+                    node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
                     # node = Node(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
                     self.scene_graph.add_node_wo_edge(node)
                     if node is not None:
                         self.scene_graph.add_node(node)
-                    self.object_positions[obj['object_id']] = self.dict_to_pos(obj['position'])
-                    self.object_position_known[obj['object_id']] = True
+                    self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+                    self.object_position_known[obj['objectId']] = True
+                    # if obj['rotation']['x'] < 0.1 and obj['rotation']['z'] < 0.1:
+                    #     self.object_upright[obj['objectId']] = True
+                    # else:
+                    #     self.object_upright[obj['objectId']] = False
                 else:
-                    self.object_position_known[obj['object_id']] = False
+                    self.object_position_known[obj['objectId']] = False
 
         return True
                     
     def get_id(self, obj_name):
         """ Get the object id from the object name """
         for obj in self.controller.last_event.metadata['objects']:
-            if obj['name'] == obj_name:
-                return obj['object_id']
+            if obj_name in obj['name']:
+                return obj['objectId']
         return None
     
     def get_name(self, obj_id):
         """ Get the object name from the object id """
         for obj in self.controller.last_event.metadata['objects']:
-            if obj['object_id'] == obj_id:
+            if obj['objectId'] == obj_id:
                 return obj['name']
         return None
     
     def get_obj(self, obj_id):
         """ Get the object from the object id """
-        return next(obj for obj in self.controller.last_event.metadata['objects'] if obj["object_id"] == obj_id)
+        return next(obj for obj in self.controller.last_event.metadata['objects'] if obj["objectId"] == obj_id)
     
     def get_position(self, target_object):
         """ Get the position of an object """
         for obj in self.controller.last_event.metadata['objects']:
-            if obj['object_id'] == target_object:
+            if obj['objectId'] == target_object:
                 return obj['position']
     
     def is_near_robot(self, target_object, distance=0.6):
@@ -407,6 +412,7 @@ class WorldInterface(BaseWorldInterface):
                 if [round(target_pos_val[0], 2), round(target_pos_val[1], 2)] == [self.grid[row, col, 0], self.grid[row, col, 1]]:
                     target_x = row
                     target_y = col
+        robot_pos = [robot_x, robot_y]
         target_pos = [target_x, target_y]
         # print("*** start, goal: ", robot_x, robot_y, target_pos)
         path = findPath(self.grid, x=robot_x, y=robot_y, target_pos=target_pos, reachable_points=reachable_points)
