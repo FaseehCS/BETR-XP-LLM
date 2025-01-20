@@ -146,8 +146,9 @@ class WorldInterface(BaseWorldInterface):
     
     def __init__(self, scene='FloorPlan1', movable_objects=[], graspable_objects=[], gridSize=0.25):
         self.gridSize = gridSize
-        self.grid = np.mgrid[min:max:gridSize, min:max:gridSize].transpose(1,2,0)
-        self.controller = Controller(agentMode="arm", visibilityDistance=1.0, scene=scene, gridSize=self.gridSize, rotateStepDegrees=45.0)
+        # self.grid = np.mgrid[min:max:gridSize, min:max:gridSize].transpose(1,2,0)
+        self.grid = np.mgrid[0:10:gridSize, 0:10:gridSize].transpose(1,2,0)
+        self.controller = Controller(agentMode="arm", visibilityDistance=1.0, scene=scene, gridSize=self.gridSize, rotateStepDegrees=90)
         self.controller.step(action="SetHandSphereRadius", radius=0.1)
         self.graspable_objects = graspable_objects
         self.movable_objects = movable_objects
@@ -227,9 +228,10 @@ class WorldInterface(BaseWorldInterface):
     
     def is_near_robot(self, target_object, distance=0.6):
         """ Checks if object is within reach """
-        if self.object_position_known[target_object] and \
-            self.calc_distance(target_object, self.dict_to_pos(self.robot_position)) < distance:
-            return True
+        if target_object in self.controller.last_event.metadata['objects']:
+            if self.object_position_known[target_object] and \
+                self.calc_distance(target_object, self.dict_to_pos(self.robot_position)) < distance:
+                return True
         return False
     
     def object_at(self, target_object, relation, relative_object):

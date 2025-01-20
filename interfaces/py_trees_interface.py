@@ -233,6 +233,6 @@ class PyTree(pt.trees.BehaviourTree):
             self.root,
             name=name,
             target_directory=path,
-            static=static,
+            # static=static,
             with_blackboard_variables=blackboard
         )
