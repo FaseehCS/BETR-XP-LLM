@@ -235,7 +235,8 @@ class Grasp(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
 
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, verbose=False):
+        self.world_interface = world_interface
         name = Grasp.to_string(parameters)
         self.target_object = None
         self.grasp_position = None
@@ -340,13 +341,16 @@ class Grasp(ActionBehavior):
                 if self.grasp_position is None:
                     return self.failure()
                 self.calc_approach_position()
+                
+                program = list(zip(
+                    [self.world_interface.move_cfree, self.world_interface.pick_up], # Programs
+                    [[self.approach_position, self.orientation], [self.target_object]] # Arguments
+                ))
+                
 
-                pick_program = self.world_interface.pick_up
-
-                self.full_grasping_program = self.world_interface.finalize_program(pick_program)
             if self.internal_state == self.GraspStates.WAITING_FOR_STOP:
                 if self.world_interface.has_stopped():
-                    if not self.world_interface.run_program(self.full_grasping_program):
+                    if not self.world_interface.run_program(program):
                         return self.failure()
                     self.world_interface.set_manipulation_target(self.target_object)
                     self.internal_state = self.GraspStates.WAITING_FOR_START
@@ -471,24 +475,14 @@ class Place(ActionBehavior):
                     return self.failure()
                 self.calc_place_approach_position()
 
-                approach_program = self.world_interface.move_cfree(self.approach_position, self.orientation)
-                if approach_program is None:
-                    return self.failure()
-                positioning_program = self.world_interface.move_linear(self.release_position, self.orientation,
-                                                                       self.target_object)
-                if positioning_program is None:
-                    return self.failure()
-                gripper_program = self.world_interface.get_open_gripper_program()
+                program = list(zip(
+                    [self.world_interface.move_cfree, self.world_interface.move_linear, self.world_interface.drop], # Programs
+                    [[self.approach_position, self.orientation], [self.release_position, self.orientation], []] # Arguments
+                ))
 
-                lift_program = self.world_interface.move_linear(self.approach_position, self.orientation, self.target_object)
-
-                self.full_placing_program = self.world_interface.finalize_program(approach_program +
-                                                                              positioning_program +
-                                                                              gripper_program +
-                                                                              lift_program)
             if self.internal_state == self.PlaceStates.WAITING_FOR_STOP:
                 if self.world_interface.has_stopped():
-                    if not self.world_interface.run_program(self.full_placing_program):
+                    if not self.world_interface.run_program(program):
                         return self.failure()
                     self.internal_state = self.PlaceStates.WAITING_FOR_START
             if self.internal_state == self.PlaceStates.WAITING_FOR_START:
@@ -533,20 +527,118 @@ class Place(ActionBehavior):
         else:
             self.approach_position = self.release_position + np.array([0.0, 0.0, 0.05])#TODO move numbers to world_interface
 
-class Navigate(Behavior):
+class Navigate(ActionBehavior):
     """
     Navigate to a specific location in the environment.
     """
+    
+    class NavigateStates(IntEnum):
+        """Define the internal states during execution."""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
 
     def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.NavigateStates.INIT
+        self.target_object = parameters["target_object"]
+        
+        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
+        postconditions = [NearRobot('', {"target_object": self.target_object}, world_interface)]
+        
         name = Navigate.to_string(parameters)
-        super().__init__(name, parameters, world_interface)
-        
-        preconditions = []
-        postconditions = [AtPos('', {"target_object": self.target_object,
-                                        "relation": parameters["relation"],
-                                        "relative_object": parameters["relative_object"]},
-                                world_interface)]
-        
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=_verbose)
+    
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "navigate to" + parameters["target_object"]
+        node_string += "!"
+        return node_string
+
+    def initialise(self):
+        self.internal_state = self.NavigateStates.INIT
+        ActionBehavior.initialise(self)
+        if self.world_interface.is_near_robot(self.parameters["target_object"], distance=0.6):
+            self.success()
+
+    @staticmethod
+    
+    def check_for_success(self):
+        """Check if object is at target position."""
+        if self.world_interface.is_near_robot(self.target_object, distance=0.6):
+            self.success()
+    
     def update(self):
-        raise NotImplementedError
+        self.check_for_success()
+        ActionBehavior.update(self)
+        
+        if self.state is pt.common.Status.RUNNING:
+            if not self.world_interface.object_position_known[self.target_object]:
+                return self.failure()
+
+            self.world_interface.navigate_to_obj(self.target_object)
+            
+            if self.check_for_success():
+                self.success()
+
+        return self.state
+    
+class Open(ActionBehavior):
+    """
+    Open an object (e.g. open microwave door or fridge door)
+    """
+    class OpenStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.OpenStates.INIT
+        self.target_object = parameters["target_object"]
+        preconditions = [NearRobot('', {"target_object": self.target_object}, world_interface)]
+        postconditions = [Opened('', {"target_object": self.target_object}, world_interface)]
+        
+        name = Open.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "open " + parameters["target_object"]
+        node_string += "!"
+        return node_string
+    
+    def initialise(self):
+        self.internal_state = self.OpenStates.INIT
+        ActionBehavior.initialise(self)
+        if self.target_object in self.world_interface.object_opened.keys():
+            if self.world_interface.object_opened[self.target_object]:
+                self.success()
+        else:
+            self.failure()
+            
+    @staticmethod
+    
+    def check_for_success(self):
+        """Check if object is opened."""
+        if self.world_interface.object_opened[self.target_object]:
+            self.success()
+            
+    def update(self):
+        self.check_for_success()
+        ActionBehavior.update(self)
+        
+        if self.state is pt.common.Status.RUNNING:
+            self.world_interface.open_obj(self.target_object)
+            
+            if self.check_for_success():
+                self.success()
+            else:
+                self.failure()
+                    
+        return self.state

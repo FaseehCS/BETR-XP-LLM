@@ -201,6 +201,8 @@ class WorldInterface(BaseWorldInterface):
                     self.object_position_known[obj['object_id']] = True
                 else:
                     self.object_position_known[obj['object_id']] = False
+
+        return True
                     
     def get_id(self, obj_name):
         """ Get the object id from the object name """
@@ -255,6 +257,18 @@ class WorldInterface(BaseWorldInterface):
                                     returnToStart=False,
                                     fixedDeltaTime=0.02
                                 )
+        
+    def move_cfree(self, position, orientation=None):
+        """ Move the arm end-effector to a specific location along a collision-free path """
+        return self.controller.step(action="MoveArm",
+                                    position=position,
+                                    rotation=orientation,
+                                    coordinateSpace="world",
+                                    restrictMovement=True,
+                                    speed=1,
+                                    returnToStart=True,
+                                    fixedDeltaTime=0.02
+                                )
     
     def teleport_to(self, target_object):
         """ Navigate to a specific object """
@@ -273,12 +287,6 @@ class WorldInterface(BaseWorldInterface):
         """ Place an object at a specific location """
         if self.grasped_object == target_object:
             return self.controller.step(action='PlaceObjectAtPoint', objectId=target_object, position=position)
-        else:
-            return None
-    
-    def drop(self):
-        """ Drop the object held by the robot """
-        return self.controller.step(action='DropHandObject')
     
     def put_on(self, target_object, receptacle):
         """ Put an object on another object """
@@ -343,6 +351,8 @@ class WorldInterface(BaseWorldInterface):
                     print("thor put_obj did not work, try place obj in small recetacle primitive")
                     if target_obj_type not in ["CoffeeMachine", "Microwave"]:
                         place_obj_in_small_receptacle(receptacle_pos)
+                        
+        return self.controller.step(action="Done")
     
     def toggle_on(self, target_object):
         """ Toggle an object on """
@@ -424,7 +434,7 @@ class WorldInterface(BaseWorldInterface):
             self.grasped_object = self.controller.last_event.metadata['arm']['heldObjects'][0]['objectId'] if len(self.controller.last_event.metadata['arm']['heldObjects']) > 0 else None
 
         self.look_at(target_pos=target_obj["position"], robot_pos=robot_pos)
-        self.controller.step(action="Done")
+        return self.controller.step(action="Done")
         
     def look_at(self, target_pos, center_to_camera_disp=0.6):
         robot_pos = self.controller.last_event.metadata['agent']['position']
@@ -455,6 +465,7 @@ class WorldInterface(BaseWorldInterface):
                 action="LookUp",
                 degrees=-final_tilt
             )
+        return self.controller.step(action="Done")
             
     def place_obj_in_small_receptacle(self, place_location):
         print("[INFO] Running primitive to place object in small receptacle")
@@ -507,8 +518,7 @@ class WorldInterface(BaseWorldInterface):
                 degrees=tilt
             )
         #print("Look: ", e)
-        self.controller.step(action="Done")
-        time.sleep(1)
+        return self.controller.step(action="Done")
         
     def place_obj_on_large_receptacle(self, src_obj, target_obj_id, thresh=0.8):
         print("[INFO] Running primitive to place object on large receptacle")
@@ -616,4 +626,19 @@ class WorldInterface(BaseWorldInterface):
                 visible = True
         
         self.look_at(robot_pos, place_location)
-        self.interact_actions[self.counter] = "Put " + src_obj_type_in_sim.lower() + " on " + target_obj_type_in_sim.lower()
+        return self.controller.step(action="Done")
+        
+    def run_program(self, programs):
+        """ Run an action """
+        try:
+            for program, args in programs:
+                if args == []:
+                    event = program()
+                else:
+                    event = program(*args)
+                if not event.metadata['lastActionSuccess']:            
+                    return False
+            return True
+        except Exception as e:
+            self.error_message = str(e)
+            return False
