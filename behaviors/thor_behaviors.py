@@ -176,7 +176,7 @@ class NearRobot(Behavior):
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
-        return self.check_negated(self.world_interface.is_near_robot(self.parameters["target_object"], distance=0.6))
+        return self.check_negated(self.world_interface.is_near_robot(self.parameters["target_object"]))
 
 class Opened(Behavior):
     """
@@ -560,12 +560,12 @@ class Navigate(ActionBehavior):
     def initialise(self):
         self.internal_state = self.NavigateStates.INIT
         ActionBehavior.initialise(self)
-        if self.world_interface.is_near_robot(self.parameters["target_object"], distance=0.6):
+        if self.world_interface.is_near_robot(self.parameters["target_object"]):
             self.success()
     
     def check_for_success(self):
         """Check if object is at target position."""
-        if self.world_interface.is_near_robot(self.target_object, distance=0.6):
+        if self.world_interface.is_near_robot(self.target_object):
             self.success()
     
     def update(self):

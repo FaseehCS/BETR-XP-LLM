@@ -11,7 +11,8 @@ torch.set_grad_enabled(False)
 torch.manual_seed(0)
 
 from reflect.main.scene_graph import SceneGraph as BaseSceneGraph
-import reflect.main.scene_graph as SceneObject
+from reflect.main.scene_graph import Node as GraphNode
+from reflect.main.scene_graph import Edge as GraphEdge
 from reflect.main.action_primitives import *
 from reflect.main.get_local_sg import get_2d_bbox_from_3d_pcd
 from reflect.main.utils import *
@@ -105,7 +106,7 @@ def gen_node(obj, event, obj_held_prev=False):
     total_points_dict[object_id] = total_points
     bbox = get_2d_bbox_from_3d_pcd(event, object_id, total_points_dict)
     if name is not None and bbox is not None:
-        node = SceneObject.Node(name, 
+        node = GraphNode(name, 
                     object_id=object_id, 
                     pos3d=box.get_center(), 
                     corner_pts=np.array(box.get_box_points()), 
@@ -140,12 +141,12 @@ class SceneGraph(BaseSceneGraph):
                    relation = 'at'
                    
         if relation is not None:
-            self.edges[(target_object, relative_object)] = SceneObject.Edge(target_object, relative_object, relation)
+            self.edges[(target_object, relative_object)] = GraphEdge(target_object, relative_object, relation)
 
 
 class WorldInterface(BaseWorldInterface):
 
-    def __init__(self, scene='FloorPlan1', movable_objects=[], graspable_objects=[], gridSize=0.25):
+    def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], gridSize=0.25):
         self.gridSize = gridSize
         self.grid = np.mgrid[-5:5.1:gridSize, -5:5.1:gridSize].transpose(1,2,0)
         self.controller = Controller(
@@ -156,6 +157,9 @@ class WorldInterface(BaseWorldInterface):
             renderDepthImage=True,
             renderInstanceSegmentation=True,
             rotateStepDegrees=90,
+            width=960,
+            height=960,
+            fieldOfView=60,
         )
         self.controller.step(action="SetHandSphereRadius", radius=0.1)
 
@@ -202,7 +206,7 @@ class WorldInterface(BaseWorldInterface):
 
                 if obj['visible'] or obj['objectId'] in self.object_position_known.keys():
                     node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
-                    # node = SceneObject.Node(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
+                    # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
                     self.scene_graph.add_node_wo_edge(node)
                     if node is not None:
                         self.scene_graph.add_node(node)
@@ -241,8 +245,9 @@ class WorldInterface(BaseWorldInterface):
             if obj['objectId'] == target_object:
                 return obj['position']
 
-    def is_near_robot(self, target_object, distance=0.6):
+    def is_near_robot(self, target_object, distance=10):
         """ Checks if object is within reach """
+        print("robot pos:", self.robot_position)
         if target_object in self.controller.last_event.metadata['objects']:
             if self.object_position_known[target_object] and \
                 self.calc_distance(target_object, self.dict_to_pos(self.robot_position)) < distance:
@@ -340,7 +345,7 @@ class WorldInterface(BaseWorldInterface):
 
         # look at object
         robot_pos = self.controller.last_event.metadata['agent']['position']
-        self.look_at(target_pos=receptacle_pos, robot_pos=robot_pos)
+        self.look_at(target_pos=receptacle_pos)
 
         # can only put one object in microwave
         if target_obj_type == 'Microwave' and len(receptacle_obj['receptacleObjectIds']) > 0:
@@ -402,14 +407,23 @@ class WorldInterface(BaseWorldInterface):
     def dict_to_pos(self, pos):
         return np.array([pos['x'], pos['y'], pos['z']])
 
+    @staticmethod
+    def get_2d_reachable_points(reachable_positions):
+        reachable_points = []
+        for p in reachable_positions:
+            reachable_points.append([p['x'], p['z']])
+        reachable_points = np.array(reachable_points)
+        return reachable_points
+
     def navigate_to_obj(self, target_object, counter=0):
         print("[INFO] Execute action: Navigate to", target_object)
         target_obj = self.get_obj(target_object)
         self.nav_actions = {}
 
         # BFS search for poth
-        reachable_points = self.controller.step(action="GetReachablePositions").metadata['actionReturn']
-        closest_pos = closest_position(target_obj["position"], reachable_points)
+        reachable_positions = self.controller.step(action="GetReachablePositions").metadata['actionReturn']
+        reachable_points = self.get_2d_reachable_points(reachable_positions)
+        closest_pos = closest_position(target_obj["position"], reachable_positions)
         robot_pos = self.controller.last_event.metadata['agent']['position']
         target_pos_val = [closest_pos['x'], closest_pos['z']]
         # print("robot_pos, target_pos, closest_to_target_pos: ", robot_pos, target_pos_val, closest_pos)
@@ -424,7 +438,7 @@ class WorldInterface(BaseWorldInterface):
                     target_y = col
         robot_pos = [robot_x, robot_y]
         target_pos = [target_x, target_y]
-        # print("*** start, goal: ", robot_x, robot_y, target_pos)
+        print("*** start, goal: ", robot_x, robot_y, target_pos)
         path = findPath(self.grid, x=robot_x, y=robot_y, target_pos=target_pos, reachable_points=reachable_points)
         # print("path: ", path)
 
@@ -448,7 +462,7 @@ class WorldInterface(BaseWorldInterface):
             self.controller.step(action="Done")
             self.grasped_object = self.controller.last_event.metadata['arm']['heldObjects'][0]['objectId'] if len(self.controller.last_event.metadata['arm']['heldObjects']) > 0 else None
 
-        self.look_at(target_pos=target_obj["position"], robot_pos=robot_pos)
+        self.look_at(target_pos=target_obj["position"])
         return self.controller.step(action="Done")
 
     def look_at(self, target_pos, center_to_camera_disp=0.6):
@@ -640,7 +654,7 @@ class WorldInterface(BaseWorldInterface):
             if src_obj['visible']:
                 visible = True
 
-        self.look_at(robot_pos, place_location)
+        self.look_at(place_location)
         return self.controller.step(action="Done")
 
     def run_program(self, programs):
