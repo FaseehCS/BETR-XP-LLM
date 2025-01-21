@@ -251,9 +251,7 @@ class WorldInterface(BaseWorldInterface):
         self.robot_position = self.controller.last_event.metadata['agent']['position']
         self.object_positions[target_object] = self.dict_to_pos(self.get_position(target_object))
         print("diff: ", self.calc_distance(target_object, self.dict_to_pos(self.robot_position)))
-        print('known object positions', self.object_positions)
         # self.object_position_known[target_object] = True
-        # if target_object in self.controller.last_event.metadata['objects']:
         if self.object_position_known[target_object] and \
             self.calc_distance(target_object, self.dict_to_pos(self.robot_position)) < distance:
             return True
@@ -275,7 +273,6 @@ class WorldInterface(BaseWorldInterface):
         """ Move the arm end-effector to a specific location """
         return self.controller.step(action="MoveArm",
                                     position=position,
-                                    rotation=orientation,
                                     coordinateSpace="world",
                                     restrictMovement=False,
                                     speed=1,
@@ -287,7 +284,6 @@ class WorldInterface(BaseWorldInterface):
         """ Move the arm end-effector to a specific location along a collision-free path """
         return self.controller.step(action="MoveArm",
                                     position=position,
-                                    rotation=orientation,
                                     coordinateSpace="world",
                                     restrictMovement=True,
                                     speed=1,

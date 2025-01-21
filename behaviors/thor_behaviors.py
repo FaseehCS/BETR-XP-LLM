@@ -342,16 +342,18 @@ class Grasp(ActionBehavior):
                     return self.failure()
                 self.calc_approach_position()
                 
-                program = list(zip(
-                    [self.world_interface.move_cfree, self.world_interface.pick_up], # Programs
-                    [[self.approach_position, self.orientation], [self.target_object]] # Arguments
-                ))
+                # program = list(zip(
+                #     [self.world_interface.move_cfree, self.world_interface.pick_up], # Programs
+                #     [[self.approach_position, self.orientation], [self.target_object]] # Arguments
+                # ))
                 
 
             if self.internal_state == self.GraspStates.WAITING_FOR_STOP:
                 if self.world_interface.has_stopped():
-                    if not self.world_interface.run_program(program):
-                        return self.failure()
+                    # if not self.world_interface.run_program(program):
+                    #     return self.failure()
+                    self.world_interface.move_cfree(self.approach_position)
+                    self.world_interface.pick_up(self.target_object)
                     self.world_interface.set_manipulation_target(self.target_object)
                     self.internal_state = self.GraspStates.WAITING_FOR_START
             if self.internal_state == self.GraspStates.WAITING_FOR_START:
@@ -553,7 +555,7 @@ class Navigate(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "navigate to" + parameters["target_object"]
+        node_string = "navigate to " + parameters["target_object"]
         node_string += "!"
         return node_string
 
