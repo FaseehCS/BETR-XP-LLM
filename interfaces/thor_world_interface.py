@@ -203,19 +203,20 @@ class WorldInterface(BaseWorldInterface):
                 self.object_opened[obj['objectId']] = obj['isOpen']
 
             if obj['objectId'] not in self.scene_graph_nodes:
-
-                if obj['visible'] or obj['objectId'] in self.object_position_known.keys():
+                if obj['visible']:
                     node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
                     # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
                     self.scene_graph.add_node_wo_edge(node)
                     if node is not None:
                         self.scene_graph.add_node(node)
-                    self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
                     self.object_position_known[obj['objectId']] = True
+                    self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
                     # if obj['rotation']['x'] < 0.1 and obj['rotation']['z'] < 0.1:
                     #     self.object_upright[obj['objectId']] = True
                     # else:
                     #     self.object_upright[obj['objectId']] = False
+                if obj['objectId'] in self.object_position_known.keys():
+                    self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
                 else:
                     self.object_position_known[obj['objectId']] = False
 
@@ -245,14 +246,19 @@ class WorldInterface(BaseWorldInterface):
             if obj['objectId'] == target_object:
                 return obj['position']
 
-    def is_near_robot(self, target_object, distance=10):
+    def is_near_robot(self, target_object, distance=0.6):
         """ Checks if object is within reach """
-        print("robot pos:", self.robot_position)
-        if target_object in self.controller.last_event.metadata['objects']:
-            if self.object_position_known[target_object] and \
-                self.calc_distance(target_object, self.dict_to_pos(self.robot_position)) < distance:
-                return True
-        return False
+        self.robot_position = self.controller.last_event.metadata['agent']['position']
+        self.object_positions[target_object] = self.dict_to_pos(self.get_position(target_object))
+        print("diff: ", self.calc_distance(target_object, self.dict_to_pos(self.robot_position)))
+        print('known object positions', self.object_positions)
+        # self.object_position_known[target_object] = True
+        # if target_object in self.controller.last_event.metadata['objects']:
+        if self.object_position_known[target_object] and \
+            self.calc_distance(target_object, self.dict_to_pos(self.robot_position)) < distance:
+            return True
+        else:
+            return False
 
     def object_at(self, target_object, relation, relative_object):
         return relation == self.scene_graph.edges[(target_object, relative_object)].edge_type
@@ -460,9 +466,11 @@ class WorldInterface(BaseWorldInterface):
                 standing=True
             )
             self.controller.step(action="Done")
-            self.grasped_object = self.controller.last_event.metadata['arm']['heldObjects'][0]['objectId'] if len(self.controller.last_event.metadata['arm']['heldObjects']) > 0 else None
+            self.get_feedback()
+            # self.grasped_object = self.controller.last_event.metadata['arm']['heldObjects'][0]['objectId'] if len(self.controller.last_event.metadata['arm']['heldObjects']) > 0 else None
 
         self.look_at(target_pos=target_obj["position"])
+        # self.get_feedback()
         return self.controller.step(action="Done")
 
     def look_at(self, target_pos, center_to_camera_disp=0.6):

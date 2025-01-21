@@ -366,7 +366,7 @@ class Grasp(ActionBehavior):
 
     def calc_grasp_position(self):
         """Gets grasp position of object"""
-        self.grasp_position = self.world_interface.get_position(self.target_object)
+        self.grasp_position = self.world_interface.dict_to_pos(self.world_interface.get_position(self.target_object))
 
     def calc_approach_position(self):
         """Gets approach position of object"""
@@ -577,9 +577,7 @@ class Navigate(ActionBehavior):
                 return self.failure()
 
             self.world_interface.navigate_to_obj(self.target_object)
-            
-            if self.check_for_success():
-                self.success()
+            self.check_for_success()
 
         return self.state
     
@@ -631,11 +629,7 @@ class Open(ActionBehavior):
         
         if self.state is pt.common.Status.RUNNING:
             self.world_interface.open_obj(self.target_object)
-            
-            if self.check_for_success():
-                self.success()
-            else:
-                self.failure()
+            self.check_for_success()
                     
         return self.state
     
@@ -646,4 +640,4 @@ def get_condition_nodes():
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place, Navigate]
+    return [Grasp, Place, Navigate, Open]
