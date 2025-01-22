@@ -6,13 +6,25 @@ import datetime
 import numpy as np
 
 class VLMPrompter:
-    def __init__(self, gpt_version, api_key) -> None:
+    def __init__(self, gpt_version, api_key, root_folder_path, task_name, skill_descriptions=None, plan_execution=None, scene_graph=None, hierarchical_summary=None, images=None, failure_skill=None, failure_reason=None) -> None:
         self.gpt_version = gpt_version
         if not api_key:
             raise ValueError("OpenAI API key is not provided.")
         openai.api_key = api_key
 
-    def query(self, prompt: str, sampling_params: dict, save: bool, save_dir: str, image_paths: list = None) -> str:
+        # Task-specific directory
+        self.task_dir = os.path.join(root_folder_path, task_name)
+        os.makedirs(self.task_dir, exist_ok=True)
+
+        # Initialize file paths and attributes
+        self.skill_descriptions = self.read_file(skill_descriptions) if skill_descriptions else None
+        self.plan_execution = self.read_file(plan_execution) if plan_execution else None
+        self.scene_graph = self.read_file(scene_graph) if scene_graph else None
+        self.hierarchical_summary = self.read_file(hierarchical_summary) if hierarchical_summary else None
+        self.images = images if images else []  # List of image file paths
+        self.failure_skill = self.read_file(failure_skill) if failure_skill else None
+        self.failure_reason = self.read_file(failure_reason) if failure_reason else None
+
         # Process images if provided
         image_files = []
         if image_paths:
