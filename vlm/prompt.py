@@ -44,6 +44,15 @@ class VLMPrompter:
         except Exception as e:
             print(f"Error writing to file {file_path}: {e}")
 
+    def update_inputs(self, images=None, scene_graph=None, hierarchical_summary=None):
+        """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
+        if images:
+            self.images = [img for img in images if os.path.exists(img)]
+        if scene_graph and os.path.exists(scene_graph):
+            self.scene_graph = self.read_file(scene_graph)
+        if hierarchical_summary and os.path.exists(hierarchical_summary):
+            self.hierarchical_summary = self.read_file(hierarchical_summary)
+
     def query(self, prompt: str, sampling_params: dict, save: bool, save_dir: str, query_file: str, response_file: str) -> str:
         """Send the prompt to the GPT model with optional image files and fail-safe retries."""
         # Save query to file
