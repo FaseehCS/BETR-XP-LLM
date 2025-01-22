@@ -125,4 +125,5 @@ class VLMPrompter:
 
     @staticmethod
     def make_key():
+        """Generate a unique key based on the current date and time."""
         return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
