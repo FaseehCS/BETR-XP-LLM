@@ -227,3 +227,34 @@ class VLMPrompter:
         response_file = os.path.join(self.task_dir, "postconditions_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
+    # Proactive Checker methods (static inputs)
+    def proactive_detection(self, params):
+        """Handles the detection functionality for proactive checking."""
+        prompt = params["template-user"]
+        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        query_file = os.path.join(self.task_dir, "proactive_detection_query.txt")
+        response_file = os.path.join(self.task_dir, "proactive_detection_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+    def proactive_identification(self, params):
+        """Handles the identification functionality for proactive checking."""
+        prompt = params["template-user"]
+        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        query_file = os.path.join(self.task_dir, "proactive_identification_query.txt")
+        response_file = os.path.join(self.task_dir, "proactive_identification_response.txt")
+        response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+        self.write_file(params["failure-skill"], "Extracted failure skill from response")
+        self.write_file(params["failure-reason"], "Extracted reason from response")
+        return response
+
+    def proactive_correction(self, params):
+        """Handles the correction functionality for proactive checking."""
+        self.failure_skill = self.read_file(params["failure-skill"])
+        self.failure_reason = self.read_file(params["failure-reason"])
+
+        prompt = params["template-user"]
+        prompt = self._populate_prompt(prompt, params, include_failure_info=True)
+        query_file = os.path.join(self.task_dir, "proactive_correction_query.txt")
+        response_file = os.path.join(self.task_dir, "proactive_correction_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
