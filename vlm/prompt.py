@@ -103,7 +103,8 @@ class VLMPrompter:
         # If retries exhausted, raise an error
         raise RuntimeError(f"Query failed after {max_retries} retries.")
 
-    def save_response(self, response, prompt, sampling_params, save_dir, image_paths):
+    def save_response(self, response, prompt, sampling_params, save_dir):
+        """Save the GPT response to a file."""
         os.makedirs(save_dir, exist_ok=True)
         key = self.make_key()
         output = {}
@@ -117,8 +118,8 @@ class VLMPrompter:
             output[key] = {
                 'prompt': prompt,
                 'sampling_params': sampling_params,
-                'response': response['choices'][0]['message']["content"].strip() if 'gpt-4' in self.gpt_version else response['choices'][0]['text'].strip(),
-                'images': image_paths
+                'response': response['choices'][0]['message']["content"].strip(),
+                'images': self.images
             }
             json.dump(output, f, indent=4)
 
