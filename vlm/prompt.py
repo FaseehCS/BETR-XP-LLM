@@ -127,3 +127,21 @@ class VLMPrompter:
     def make_key():
         """Generate a unique key based on the current date and time."""
         return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    def _populate_prompt(self, prompt, params, include_failure_info=False):
+        """Populates placeholders in the prompt with actual data."""
+        prompt = prompt.replace("[SKILL_DESCRIPTIONS]", self.skill_descriptions or "")
+        prompt = prompt.replace("[PLAN_EXECUTION]", self.plan_execution or "")
+        prompt = prompt.replace("[SCENE_GRAPH]", self.scene_graph or "")
+        prompt = prompt.replace("[HIERARCHICAL_SUMMARY]", self.hierarchical_summary or "")
+        prompt = prompt.replace("[IMAGES]", ", ".join(self.images) if self.images else "")
+
+        if include_failure_info:
+            prompt = prompt.replace("[FAILURE_SKILL]", self.failure_skill or "")
+            prompt = prompt.replace("[FAILURE_REASON]", self.failure_reason or "")
+        else:
+            prompt = prompt.replace("[FAILURE_SKILL]", "")
+            prompt = prompt.replace("[FAILURE_REASON]", "")
+
+        return prompt
+
