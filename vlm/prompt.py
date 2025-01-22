@@ -44,10 +44,15 @@ class VLMPrompter:
         except Exception as e:
             print(f"Error writing to file {file_path}: {e}")
 
+    def query(self, prompt: str, sampling_params: dict, save: bool, save_dir: str, query_file: str, response_file: str) -> str:
+        """Send the prompt to the GPT model with optional image files and fail-safe retries."""
+        # Save query to file
+        self.write_file(query_file, prompt)
+
         # Process images if provided
         image_files = []
-        if image_paths:
-            for image_path in image_paths:
+        if self.images:
+            for image_path in self.images:
                 try:
                     with open(image_path, 'rb') as img_file:
                         image_bytes = img_file.read()
@@ -59,42 +64,44 @@ class VLMPrompter:
         if image_files and 'gpt-4-vision' not in self.gpt_version:
             raise ValueError("The provided model does not support image input.")
 
-        while True:
+        # Fail-safe mechanism for retries
+        max_retries = 5
+        retry_count = 0
+
+        while retry_count < max_retries:
             try:
-                # Handle multimodal input or text-only input
                 if image_files:
                     response = openai.ChatCompletion.create(
                         model=self.gpt_version,
-                        messages=[
-                            {"role": "system", "content": prompt['system']},
-                            {"role": "user", "content": prompt['user']},
-                        ],
+                        messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": prompt}],
                         files=image_files,
                         **sampling_params
                     )
                 else:
                     response = openai.ChatCompletion.create(
                         model=self.gpt_version,
-                        messages=[
-                            {"role": "system", "content": prompt['system']},
-                            {"role": "user", "content": prompt['user']},
-                        ],
+                        messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": prompt}],
                         **sampling_params
                     )
+
+                # Successfully received a response
+                response_text = response['choices'][0]['message']["content"].strip()
+
+                # Save response to file
+                self.write_file(response_file, response_text)
+
+                if save:
+                    self.save_response(response, prompt, sampling_params, save_dir)
+
+                return response_text
+
             except Exception as e:
-                print(f"Request failed. Retrying in 2 seconds... Exception: {e}")
+                retry_count += 1
+                print(f"Request failed. Retrying ({retry_count}/{max_retries}) in 2 seconds... Exception: {e}")
                 time.sleep(2)
-                continue
-            break
 
-        if save:
-            self.save_response(response, prompt, sampling_params, save_dir, image_paths)
-
-        if 'gpt-4' in self.gpt_version:
-            return response['choices'][0]['message']["content"].strip(), None
-        else:
-            logprob = response['choices'][0].get('logprobs', {}).get('token_logprobs')
-            return response['choices'][0]['text'].strip(), np.mean(logprob) if logprob else None
+        # If retries exhausted, raise an error
+        raise RuntimeError(f"Query failed after {max_retries} retries.")
 
     def save_response(self, response, prompt, sampling_params, save_dir, image_paths):
         os.makedirs(save_dir, exist_ok=True)
