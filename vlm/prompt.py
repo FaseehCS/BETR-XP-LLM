@@ -25,6 +25,25 @@ class VLMPrompter:
         self.failure_skill = self.read_file(failure_skill) if failure_skill else None
         self.failure_reason = self.read_file(failure_reason) if failure_reason else None
 
+    @staticmethod
+    def read_file(file_path):
+        """Reads the content of a file and returns it as a string."""
+        try:
+            with open(file_path, 'r') as file:
+                return file.read().strip()
+        except Exception as e:
+            print(f"Error reading file {file_path}: {e}")
+            return None
+
+    @staticmethod
+    def write_file(file_path, content):
+        """Writes content to a file."""
+        try:
+            with open(file_path, 'w') as file:
+                file.write(content.strip())
+        except Exception as e:
+            print(f"Error writing to file {file_path}: {e}")
+
         # Process images if provided
         image_files = []
         if image_paths:
