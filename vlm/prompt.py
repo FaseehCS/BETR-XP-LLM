@@ -145,3 +145,44 @@ class VLMPrompter:
 
         return prompt
 
+    # Precondition methods
+    def precondition_detection(self, params, updated_inputs=None):
+        """Handles the detection functionality for preconditions."""
+        if updated_inputs:
+            self.update_inputs(**updated_inputs)
+
+        prompt = params["template-user"]
+        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        query_file = os.path.join(self.task_dir, "preconditions_detection_query.txt")
+        response_file = os.path.join(self.task_dir, "preconditions_detection_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+    def precondition_identification(self, params, updated_inputs=None):
+        """Handles the identification functionality for preconditions."""
+        if updated_inputs:
+            self.update_inputs(**updated_inputs)
+
+        prompt = params["template-user"]
+        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        query_file = os.path.join(self.task_dir, "preconditions_identification_query.txt")
+        response_file = os.path.join(self.task_dir, "preconditions_identification_response.txt")
+        response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+        self.write_file(params["failure-skill"], "Extracted failure skill from response")
+        self.write_file(params["failure-reason"], "Extracted reason from response")
+        return response
+
+    def precondition_correction(self, params, updated_inputs=None):
+        """Handles the correction functionality for preconditions."""
+        if updated_inputs:
+            self.update_inputs(**updated_inputs)
+
+        self.failure_skill = self.read_file(params["failure-skill"])
+        self.failure_reason = self.read_file(params["failure-reason"])
+
+        prompt = params["template-user"]
+        prompt = self._populate_prompt(prompt, params, include_failure_info=True)
+        query_file = os.path.join(self.task_dir, "preconditions_correction_query.txt")
+        response_file = os.path.join(self.task_dir, "preconditions_correction_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
