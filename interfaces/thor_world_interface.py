@@ -287,7 +287,7 @@ class WorldInterface(BaseWorldInterface):
                                     coordinateSpace="world",
                                     restrictMovement=True,
                                     speed=1,
-                                    returnToStart=True,
+                                    returnToStart=False,
                                     fixedDeltaTime=0.02
                                 )
 

@@ -352,17 +352,26 @@ class Grasp(ActionBehavior):
                 if self.world_interface.has_stopped():
                     # if not self.world_interface.run_program(program):
                     #     return self.failure()
-                    self.world_interface.move_cfree(self.approach_position)
-                    self.world_interface.pick_up(self.target_object)
+                    if self.check_for_failure():
+                        self.failure()
                     self.world_interface.set_manipulation_target(self.target_object)
                     self.internal_state = self.GraspStates.WAITING_FOR_START
             if self.internal_state == self.GraspStates.WAITING_FOR_START:
                 if self.world_interface.is_running():
                     self.internal_state = self.GraspStates.RUNNING
-            if self.internal_state == self.GraspStates.RUNNING:
-                if self.world_interface.has_stopped():
-                    self.world_interface.set_grasped_object(self.target_object)
-                    self.success()
+
+        return self.state
+    def update(self):
+        self.check_for_success()
+        ActionBehavior.update(self)
+        
+        if self.state is pt.common.Status.RUNNING:
+            print('executing grasp action')
+            self.world_interface.move_linear(self.target_object)
+            self.world_interface.pick_up(self.target_object)
+            self.check_for_success()
+            if self.check_for_failure():
+                self.failure()
 
         return self.state
 
