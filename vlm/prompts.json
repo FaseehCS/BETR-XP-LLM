@@ -37,8 +37,8 @@
       "failure-reason": "path/to/failure_reason.txt"
     },
     "template-correction": {
-      "template-system": "You are tasked with identifying missing preconditions for the failing skill to address the failure.\nExample output: 1) No correction required as [PRECONDITIONS] of the [SKILL] have been met.\n2) The new missing preconditions [PRECONDITIONS] for the [SKILL] from identification step need to be added. The new [PRECONDITIONS] does not exist in the existing conditions [PRECONDITIONLIST]. Follow the example format for writing preconditions.",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nQ: Provide the missing preconditions in the required format.\nA:",
+      "template-system": "You are tasked with identifying missing preconditions for the failing skill with given reason of failure to address the failure.\nExample output: 1) No correction required as [PRECONDITIONS] of the [SKILL] have been met.\n2) The new missing preconditions [PRECONDITIONS] for the [SKILL] from identification step need to be added. The new [PRECONDITIONS] does not exist in the existing conditions [PRECONDITIONLIST]. Follow the example format for writing preconditions.",
+      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nFailure Skill: [FAILURE_SKILL]\nFailure Reason: [FAILURE_REASON]\nQ: Provide the missing preconditions in the required format.\nA:",
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -102,8 +102,8 @@
       "failure-reason": "path/to/failure_reason.txt"
     },
     "template-correction": {
-      "template-system": "You are tasked with identifying missing postconditions for a skill to address a failure.\nExample output: 1) No correction required as [POSTCONDITIONS] of the [SKILL] have been met.\n2) The new missing postconditions [POSTCONDITIONS] for the [SKILL] from identification step need to be added. The new [POSTCONDITIONS] does not exist in the existing conditions [POSTCONDITIONLIST]. Follow the example format for writing postconditions.",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nQ: Provide the missing postconditions in the required format.\nA:",
+      "template-system": "You are tasked with identifying missing postconditions for a failing skill with given reason of failure to address the failure.\nExample output: 1) No correction required as [POSTCONDITIONS] of the [SKILL] have been met.\n2) The new missing postconditions [POSTCONDITIONS] for the [SKILL] from identification step need to be added. The new [POSTCONDITIONS] does not exist in the existing conditions [POSTCONDITIONLIST]. Follow the example format for writing postconditions.",
+      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nFailure Skill: [FAILURE_SKILL]\nFailure Reason: [FAILURE_REASON]\nQ: Provide the missing postconditions in the required format.\nA:",
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -159,12 +159,12 @@
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",
-      "potential-failure-skills": "path/to/potential_failure_skills.txt",
+      "failure-skills": "path/to/failure_skills.txt",
       "failure-reasons": "path/to/failure_reasons.txt"
     },
     "template-correction": {
-      "template-system": "You are tasked with correcting a robot plan by adding conditions to address potential failures.\nExample output: 1) No correction required as the plan has no potential failures.\n2) Add precondition [PRECONDITION] to the skill [SKILL] to address potential failure.\n3) Add postcondition [POSTCONDITION] to the skill [SKILL] to address potential failure.",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene graph: [SCENE_GRAPH]\nPotential Failure Skills: [POTENTIALFAILURESKILLS]\nFailure Reasons: [FAILUREREASONS]\nQ: Suggest corrections to the plan to address the potential failures.\nA:",
+      "template-system": "You are tasked with correcting a robot plan by adding conditions to address failure skills with given failure reasons.\nExample output: 1) No correction required as the plan has no failures.\n2) Add precondition [PRECONDITION] to the skill [SKILL] to address failure.\n3) Add postcondition [POSTCONDITION] to the skill [SKILL] to address failure.",
+      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene graph: [SCENE_GRAPH]\nFailure Skill: [FAILURE_SKILL]\nFailure Reason: [FAILURE_REASON]\nQ: Suggest corrections to the plan to address the failures.\nA:",
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -176,7 +176,7 @@
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",
-      "potential-failure-skills": "path/to/potential_failure_skills.txt",
+      "failure-skills": "path/to/failure_skills.txt",
       "failure-reasons": "path/to/failure_reasons.txt"
     }
   }
