@@ -173,7 +173,9 @@ class BaseWorldInterface:
 
     def calc_distance(self, target_object, position):
         """ Calculates the distance between target object and given position """
-        return np.linalg.norm(self.object_positions[target_object] - position)
+        target_position = np.array([self.object_positions[target_object][0], self.object_positions[target_object][2]])
+        position = np.array([position[0], position[2]])
+        return np.linalg.norm(target_position - position)
 
     def get_position(self, target_object):
         """

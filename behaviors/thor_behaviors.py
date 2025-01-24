@@ -172,11 +172,11 @@ class NearRobot(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = parameters["target_object"] + " near robot?"
+        node_string = parameters["destination"] + " near robot?"
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
-        return self.check_negated(self.world_interface.is_near_robot(self.parameters["target_object"]))
+        return self.check_negated(self.world_interface.is_near_robot(self.parameters["destination"]))
 
 class Opened(Behavior):
     """
@@ -245,16 +245,17 @@ class Grasp(ActionBehavior):
         self.internal_state = self.GraspStates.INIT
         self.full_grasping_program = ''
         preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
-                         NearRobot('', {"target_object": parameters["target_object"]}, world_interface)]
+                         NearRobot('', {"destination": parameters["target_object"]}, world_interface)]
         if world_interface.is_graspable(parameters["target_object"]) or parameters["target_object"] == '"any object"':
             postconditions = [Grasped('', {"target_object": parameters["target_object"]}, world_interface)]
-            relation = parameters.get("relation")
-            relative_object = parameters.get("relative_object")
-            if relation is not None and relative_object is not None:
-                postconditions += [AtPos('', {"not": True,
-                                              "target_object": parameters["target_object"],
-                                              "relation": relation,
-                                              "relative_object": relative_object}, world_interface)]
+            for edge in world_interface.scene_graph.edges.keys():
+                if self.target_object in edge:
+                    relation = world_interface.scene_graph.edges[edge].edge_type
+                    relative_object = edge[1] if edge[0] == self.target_object else edge[0]
+                    postconditions += [AtPos('', {"not": True,
+                                                "target_object": parameters["target_object"],
+                                                "relation": relation,
+                                                "relative_object": relative_object}, world_interface)]
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
 
     @staticmethod
@@ -318,6 +319,7 @@ class Grasp(ActionBehavior):
 
     def check_for_success(self):
         """Check if object is grasped."""
+        # self.world_interface.get_feedback()
         if self.world_interface.get_grasped_object() == self.target_object:
             self.success()
 
@@ -325,50 +327,19 @@ class Grasp(ActionBehavior):
         """Fail if some other object is grasped."""
         grasped_object = self.world_interface.get_grasped_object()
         return grasped_object not in (self.target_object , None)
-    
-    def update(self):
-        """Executes behavior """
-        self.check_for_success()
-        ActionBehavior.update(self)
 
-        if self.state is pt.common.Status.RUNNING:
-            if self.check_for_failure():
-                return self.failure()
-            if self.internal_state == self.GraspStates.INIT:
-                self.world_interface.stop()
-                self.internal_state = self.GraspStates.WAITING_FOR_STOP
-                self.calc_grasp_position()
-                if self.grasp_position is None:
-                    return self.failure()
-                self.calc_approach_position()
-                
-                # program = list(zip(
-                #     [self.world_interface.move_cfree, self.world_interface.pick_up], # Programs
-                #     [[self.approach_position, self.orientation], [self.target_object]] # Arguments
-                # ))
-                
-
-            if self.internal_state == self.GraspStates.WAITING_FOR_STOP:
-                if self.world_interface.has_stopped():
-                    # if not self.world_interface.run_program(program):
-                    #     return self.failure()
-                    if self.check_for_failure():
-                        self.failure()
-                    self.world_interface.set_manipulation_target(self.target_object)
-                    self.internal_state = self.GraspStates.WAITING_FOR_START
-            if self.internal_state == self.GraspStates.WAITING_FOR_START:
-                if self.world_interface.is_running():
-                    self.internal_state = self.GraspStates.RUNNING
-
-        return self.state
     def update(self):
         self.check_for_success()
         ActionBehavior.update(self)
         
         if self.state is pt.common.Status.RUNNING:
             print('executing grasp action')
-            self.world_interface.move_linear(self.target_object)
+            self.calc_grasp_position()
+            self.calc_approach_position()
+            # self.world_interface.move_armbase()
+            # self.world_interface.move_linear(self.world_interface.pos_to_dict(self.approach_position))
             self.world_interface.pick_up(self.target_object)
+            self.world_interface.get_feedback()
             self.check_for_success()
             if self.check_for_failure():
                 self.failure()
@@ -377,13 +348,13 @@ class Grasp(ActionBehavior):
 
     def calc_grasp_position(self):
         """Gets grasp position of object"""
-        self.grasp_position = self.world_interface.dict_to_pos(self.world_interface.get_position(self.target_object))
+        self.grasp_position = self.world_interface.object_positions[self.target_object]
 
     def calc_approach_position(self):
         """Gets approach position of object"""
-        self.approach_position = self.grasp_position + np.array([0.0, 0.0, 0.05]) #TODO move numbers to world_interface
+        self.approach_position = self.grasp_position + np.array([0.0, 0.05, 0.0]) #TODO move numbers to world_interface
         if "cap" in self.target_object:
-            self.approach_position[2] += 0.02
+            self.approach_position[1] += 0.02
 
 class Place(ActionBehavior):
     """
@@ -406,7 +377,8 @@ class Place(ActionBehavior):
         preconditions = []
         postconditions = []
         if world_interface.is_graspable(self.target_object):
-            preconditions = [Grasped('', {"target_object": self.target_object}, world_interface)]
+            preconditions = [Grasped('', {"target_object": self.target_object}, world_interface),
+                         NearRobot('', {"destination": parameters["relative_object"]}, world_interface)]
             postconditions = [AtPos('', {"target_object": self.target_object,
                                          "relation": parameters["relation"],
                                          "relative_object": parameters["relative_object"]},
@@ -471,44 +443,15 @@ class Place(ActionBehavior):
         return self.world_interface.get_grasped_object() != self.target_object
 
     def update(self):
-        """Executes behavior """
         self.check_for_success()
         ActionBehavior.update(self)
-
+        
         if self.state is pt.common.Status.RUNNING:
+            print('executing grasp action')
+            self.world_interface.place_obj(self.target_object, self.parameters["relative_object"])
+            self.check_for_success()
             if self.check_for_failure():
-                return self.failure()
-            if self.internal_state == self.PlaceStates.INIT:
-                self.world_interface.stop()
-                self.internal_state = self.PlaceStates.WAITING_FOR_STOP
-                self.calc_release_position()
-                if self.release_position is None:
-                    return self.failure()
-                self.calc_place_approach_position()
-
-                program = list(zip(
-                    [self.world_interface.move_cfree, self.world_interface.move_linear, self.world_interface.drop], # Programs
-                    [[self.approach_position, self.orientation], [self.release_position, self.orientation], []] # Arguments
-                ))
-
-            if self.internal_state == self.PlaceStates.WAITING_FOR_STOP:
-                if self.world_interface.has_stopped():
-                    if not self.world_interface.run_program(program):
-                        return self.failure()
-                    self.internal_state = self.PlaceStates.WAITING_FOR_START
-            if self.internal_state == self.PlaceStates.WAITING_FOR_START:
-                if self.world_interface.is_running():
-                    self.internal_state = self.PlaceStates.RUNNING
-            if self.internal_state == self.PlaceStates.RUNNING:
-                if self.world_interface.has_stopped():
-                    self.world_interface.set_grasped_object(None)
-                    if self.parameters["relation"] == "in":
-                        self.world_interface.set_object_position(self.target_object,
-                                                                 self.release_position - np.array([0.0, 0.0, self.world_interface.CUP_HEIGHT + 0.02])) #TODO move numbers to world_interface
-                    else:
-                        self.world_interface.set_object_position(self.target_object,
-                                                                 self.release_position - np.array([0.0, 0.0, 0.003])) #TODO move numbers to world_interface
-                    self.success()
+                self.failure()
 
         return self.state
 
@@ -553,10 +496,10 @@ class Navigate(ActionBehavior):
     def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         self.world_interface = world_interface
         self.internal_state = self.NavigateStates.INIT
-        self.target_object = parameters["target_object"]
+        self.target_object = parameters["destination"]
         
         preconditions = []
-        postconditions = [NearRobot('', {"target_object": self.target_object}, world_interface)]
+        postconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
         
         name = Navigate.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=_verbose)
@@ -564,14 +507,14 @@ class Navigate(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "navigate to " + parameters["target_object"]
+        node_string = "navigate to " + parameters["destination"]
         node_string += "!"
         return node_string
 
     def initialise(self):
         self.internal_state = self.NavigateStates.INIT
         ActionBehavior.initialise(self)
-        if self.world_interface.is_near_robot(self.parameters["target_object"]):
+        if self.world_interface.is_near_robot(self.parameters["destination"]):
             self.success()
     
     def check_for_success(self):
@@ -587,6 +530,7 @@ class Navigate(ActionBehavior):
             if not self.world_interface.object_position_known[self.target_object]:
                 return self.failure()
 
+            # self.world_interface.move_armbase()
             self.world_interface.navigate_to_obj(self.target_object)
             self.check_for_success()
 

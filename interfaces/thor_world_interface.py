@@ -30,8 +30,10 @@ ROTATIONS = {
 
 
 def gen_node(obj, event, obj_held_prev=False):
-    name = obj['name']
+    name = obj['objectId']
     object_id = obj['objectId']
+    total_points = torch.tensor(np.array([]))
+    pcd_obj = torch.tensor(np.array([]))
     height, width, channel = event.frame.shape
     camera_space_xyz = depth_frame_to_camera_space_xyz(
             depth_frame=torch.as_tensor(event.depth_frame.copy()), mask=None, fov=event.metadata['fov'])
@@ -85,8 +87,6 @@ def gen_node(obj, event, obj_held_prev=False):
         # assert points[object_id].shape == colors[object_id].shape
     #==============================================================
 
-    total_points = pcd_obj
-
     if is_receptacle(object_id, event):
         if is_moving(object_id, event) or is_picked_up(object_id, event) or obj_held_prev == object_id:
             total_points = pcd_obj
@@ -118,7 +118,7 @@ def gen_node(obj, event, obj_held_prev=False):
 
 class SceneGraph(BaseSceneGraph):
         
-    def add_edge(self, node, new_node):
+    def add_edges(self, node, new_node):
         target_object = new_node.name
         relative_object = node.name
         relation = None
@@ -146,11 +146,12 @@ class SceneGraph(BaseSceneGraph):
 
 class WorldInterface(BaseWorldInterface):
 
-    def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], gridSize=0.25):
+    def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], known_objects=[], gridSize=0.25):
         self.gridSize = gridSize
+
         self.grid = np.mgrid[-5:5.1:gridSize, -5:5.1:gridSize].transpose(1,2,0)
         self.controller = Controller(
-            agentMode="arm",
+            agentMode="default",
             visibilityDistance=1.0,
             scene=scene,
             gridSize=self.gridSize,
@@ -159,9 +160,9 @@ class WorldInterface(BaseWorldInterface):
             rotateStepDegrees=90,
             width=960,
             height=960,
-            fieldOfView=60,
+            fieldOfView=120,
         )
-        self.controller.step(action="SetHandSphereRadius", radius=0.1)
+        # self.controller.step(action="SetHandSphereRadius", radius=0.1)
 
         self.graspable_objects = graspable_objects
         self.movable_objects = movable_objects
@@ -170,6 +171,7 @@ class WorldInterface(BaseWorldInterface):
 
         self.grasped_object = None
         self.manipulation_target = None
+        self.object_dict = {}
         self.object_positions = {}
         self.object_position_known = {}
         self.object_upright = {}
@@ -180,6 +182,11 @@ class WorldInterface(BaseWorldInterface):
 
         self.error_message = ''
         self.failed_behavior = ''
+        
+        for obj in known_objects:
+            object_id = self.get_id(obj)
+            self.object_dict[obj] = object_id
+            self.object_position_known[object_id] = True
 
     def get_feedback(self):
         event = self.controller.last_event
@@ -189,7 +196,9 @@ class WorldInterface(BaseWorldInterface):
         self.color_frame = self.controller.last_event.cv2img
         self.depth_frame = self.controller.last_event.depth_frame
 
-        for obj in self.controller.last_event.metadata['objects']:   
+        for obj in event.metadata['objects']:
+            self.update_scene_graph(obj, event) 
+             
             if obj['pickupable']:
                 self.graspable_objects.append(obj['objectId'])
                 if obj['isPickedUp']:
@@ -202,25 +211,39 @@ class WorldInterface(BaseWorldInterface):
             if obj['openable']:
                 self.object_opened[obj['objectId']] = obj['isOpen']
 
-            if obj['objectId'] not in self.scene_graph_nodes:
-                if obj['visible']:
-                    node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
-                    # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
-                    self.scene_graph.add_node_wo_edge(node)
-                    if node is not None:
-                        self.scene_graph.add_node(node)
-                    self.object_position_known[obj['objectId']] = True
-                    self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
-                    # if obj['rotation']['x'] < 0.1 and obj['rotation']['z'] < 0.1:
-                    #     self.object_upright[obj['objectId']] = True
-                    # else:
-                    #     self.object_upright[obj['objectId']] = False
-                if obj['objectId'] in self.object_position_known.keys():
-                    self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
-                else:
-                    self.object_position_known[obj['objectId']] = False
-
         return True
+    
+    def update_scene_graph(self, obj, event):
+        if obj['objectId'] not in self.scene_graph_nodes:
+            if obj['visible']:
+                self.scene_graph_nodes.append(obj['objectId'])
+                self.object_position_known[obj['objectId']] = True
+                self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+                self.scene_graph.object_position_known = self.object_position_known
+                self.scene_graph.object_positions = self.object_positions
+                node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
+                # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
+                self.scene_graph.add_node_wo_edge(node)
+                if node is not None:
+                    self.scene_graph.add_node(node)
+                # if obj['rotation']['x'] < 0.1 and obj['rotation']['z'] < 0.1:
+                #     self.object_upright[obj['objectId']] = True
+                # else:
+                #     self.object_upright[obj['objectId']] = False
+            elif obj['objectId'] in self.object_position_known.keys():
+                self.scene_graph_nodes.append(obj['objectId'])
+                if self.object_position_known[obj['objectId']] == True:
+                    self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+            else:
+                self.object_position_known[obj['objectId']] = False
+        elif obj['visible']:
+            self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+            self.object_position_known[obj['objectId']] = True
+        elif self.object_position_known[obj['objectId']] == False:
+            self.scene_graph_nodes.remove(obj['objectId'])
+            for edge in self.scene_graph.edges.keys():
+                if obj['objectId'] in edge:
+                    self.scene_graph.edges.pop(edge) 
 
     def get_id(self, obj_name):
         """ Get the object id from the object name """
@@ -246,11 +269,12 @@ class WorldInterface(BaseWorldInterface):
             if obj['objectId'] == target_object:
                 return obj['position']
 
-    def is_near_robot(self, target_object, distance=0.6):
+    def is_near_robot(self, target_object, distance=1):
         """ Checks if object is within reach """
         self.robot_position = self.controller.last_event.metadata['agent']['position']
         self.object_positions[target_object] = self.dict_to_pos(self.get_position(target_object))
         print("diff: ", self.calc_distance(target_object, self.dict_to_pos(self.robot_position)))
+        print("distance threshold: ", distance)
         # self.object_position_known[target_object] = True
         if self.object_position_known[target_object] and \
             self.calc_distance(target_object, self.dict_to_pos(self.robot_position)) < distance:
@@ -259,7 +283,10 @@ class WorldInterface(BaseWorldInterface):
             return False
 
     def object_at(self, target_object, relation, relative_object):
-        return relation == self.scene_graph.edges[(target_object, relative_object)].edge_type
+        if (target_object, relative_object) in self.scene_graph.edges.keys():
+            return relation == self.scene_graph.edges[(target_object, relative_object)].edge_type
+        else:
+            return False
 
     def move(self, direction, magnitude=0.25):
         """ Move one step in the specified direction """
@@ -268,10 +295,21 @@ class WorldInterface(BaseWorldInterface):
     def rotate(self, rotation, degrees=90):
         """ Rotate the robot in the specified direction """
         return self.controller.step(action=ROTATIONS[rotation], degrees=degrees)
+    
+    def move_armbase(self, height=0.75):
+        e = self.controller.step(
+            action="MoveArmBase",
+            y=height,
+            speed=1,
+            returnToStart=True,
+            fixedDeltaTime=0.02
+        )
+        if e.metadata['lastActionSuccess']:
+            print(e.metadata['errorMessage'])
 
-    def move_linear(self, position, orientation=None, _target_object=None):
+    def move_linear(self, position, orientation=None):
         """ Move the arm end-effector to a specific location """
-        return self.controller.step(action="MoveArm",
+        e = self.controller.step(action="MoveArm",
                                     position=position,
                                     coordinateSpace="world",
                                     restrictMovement=False,
@@ -279,6 +317,10 @@ class WorldInterface(BaseWorldInterface):
                                     returnToStart=False,
                                     fixedDeltaTime=0.02
                                 )
+        if e.metadata['lastActionSuccess']:
+            print(e.metadata['errorMessage'])
+        else:
+            print(e.metadata['actionReturn'])
 
     def move_cfree(self, position, orientation=None):
         """ Move the arm end-effector to a specific location along a collision-free path """
@@ -298,7 +340,7 @@ class WorldInterface(BaseWorldInterface):
 
     def pick_up(self, target_object):
         """ Pick up an object """
-        return self.controller.step(action='PickupObject', objectIdCandidates=target_object)
+        self.controller.step(action='PickupObject', objectId=target_object, forceAction=True, manualInteract=False)
 
     def drop(self):
         """ Drop the object held by the robot """
@@ -306,6 +348,10 @@ class WorldInterface(BaseWorldInterface):
 
     def place_obj(self, target_object, position):
         """ Place an object at a specific location """
+        if type(position) == str:
+            position = self.get_position(position)
+        else:
+            position = self.pos_to_dict(position)
         if self.grasped_object == target_object:
             return self.controller.step(action='PlaceObjectAtPoint', objectId=target_object, position=position)
 
@@ -466,7 +512,6 @@ class WorldInterface(BaseWorldInterface):
             # self.grasped_object = self.controller.last_event.metadata['arm']['heldObjects'][0]['objectId'] if len(self.controller.last_event.metadata['arm']['heldObjects']) > 0 else None
 
         self.look_at(target_pos=target_obj["position"])
-        # self.get_feedback()
         return self.controller.step(action="Done")
 
     def look_at(self, target_pos, center_to_camera_disp=0.6):
