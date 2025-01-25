@@ -15,6 +15,12 @@ def compatible(_condition1, _condition2):
     """ TODO this is just temp to get it to run, needs to be fixed if we want priorities to work"""
     return True
 
+def extract_name(object_id):
+    """ Extract the name of the object from the object id """
+    if object_id is None:
+        return "None"
+    return object_id.split("|")[0]
+
 class AtPos(Behavior):
     """
     Check if object is at position
@@ -34,9 +40,9 @@ class AtPos(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = parameters["target_object"]
+        node_string = extract_name(parameters["target_object"])
         node_string += " " + parameters["relation"]
-        node_string += " " + parameters["relative_object"]
+        node_string += " " + extract_name(parameters["relative_object"])
         node_string += "?"
         return Behavior.common_string_rules(node_string, parameters)
 
@@ -98,7 +104,7 @@ class Grasped(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = 'grasped ' + parameters["target_object"]
+        node_string = 'grasped ' + extract_name(parameters["target_object"])
         node_string += "?"
         return Behavior.common_string_rules(node_string, parameters)
 
@@ -172,7 +178,7 @@ class NearRobot(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = parameters["destination"] + " near robot?"
+        node_string = extract_name(parameters["destination"]) + " near robot?"
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
@@ -195,7 +201,7 @@ class Opened(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = parameters["target_object"] + " opened?"
+        node_string = extract_name(parameters["target_object"]) + " opened?"
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
@@ -218,7 +224,7 @@ class Unlocked(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = parameters["target_object"] + " unlocked?"
+        node_string = extract_name(parameters["target_object"]) + " unlocked?"
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
@@ -261,9 +267,9 @@ class Grasp(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "grasp " + parameters["target_object"]
+        node_string = "grasp " + extract_name(parameters["target_object"])
         relation = parameters.get("relation")
-        relative_object = parameters.get("relative_object")
+        relative_object = extract_name(parameters.get("relative_object"))
         if relation is not None and relative_object is not None:
             node_string += " from " + relation
             node_string += " " + relative_object
@@ -397,9 +403,9 @@ class Place(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "place " + parameters["target_object"]
+        node_string = "place " + extract_name(parameters["target_object"])
         node_string += " " + parameters["relation"]
-        node_string += " " + parameters["relative_object"]
+        node_string += " " + extract_name(parameters["relative_object"])
         node_string += "!"
         return node_string
 
@@ -507,7 +513,7 @@ class Navigate(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "navigate to " + parameters["destination"]
+        node_string = "navigate to " + extract_name(parameters["destination"])
         node_string += "!"
         return node_string
 
@@ -560,7 +566,7 @@ class Open(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "open " + parameters["target_object"]
+        node_string = "open " + extract_name(parameters["target_object"])
         node_string += "!"
         return node_string
     
