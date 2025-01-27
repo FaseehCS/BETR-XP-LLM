@@ -428,10 +428,22 @@ class WorldInterface(BaseWorldInterface):
     def toggle_off(self, target_object):
         """ Toggle an object off """
         return self.controller.step(action='ToggleObjectOff', objectId=target_object)
+    
+    def is_toggled(self, target_object):
+        """ Check if an object is toggled on """
+        return self.get_obj(target_object)['isToggled']
 
     def open_obj(self, target_object):
         """ Open an object """
         return self.controller.step(action='OpenObject', objectId=target_object)
+   
+    def close_obj(self, target_object):
+        """ Open an object """
+        return self.controller.step(action='CloseObject', objectId=target_object)
+     
+    def is_opened(self, target_object):
+        """ Check if an object is opened """
+        return self.get_obj(target_object)['isOpen']
 
     def close_obj(self, target_object):
         """ Close an object """

@@ -201,11 +201,34 @@ class Opened(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = extract_name(parameters["target_object"]) + " opened?"
+        node_string = extract_name(parameters["interact_object"]) + " opened?"
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
-        return self.check_negated(self.world_interface.is_opened(self.parameters["target_object"]))
+        return self.check_negated(self.world_interface.is_opened(self.parameters["interact_object"]))
+
+class Toggled(Behavior):
+    """
+    Check if object is open
+    """
+    def __init__(self, name, parameters, world_interface, _verbose=False):
+        name = Opened.to_string(parameters)
+        super().__init__(name, parameters, world_interface)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Opened):
+            # don't attempt to compare against unrelated types
+            return False
+        return super().__eq__(other)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = extract_name(parameters["interact_object"]) + " toggled on?"
+        return Behavior.common_string_rules(node_string, parameters)
+
+    def update(self):
+        return self.check_negated(self.world_interface.is_toggled(self.parameters["interact_object"]))
 
 class Unlocked(Behavior):
     """
@@ -224,11 +247,11 @@ class Unlocked(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = extract_name(parameters["target_object"]) + " unlocked?"
+        node_string = extract_name(parameters["interact_object"]) + " unlocked?"
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
-        return self.check_negated(self.world_interface.is_unlocked(self.parameters["target_object"]))
+        return self.check_negated(self.world_interface.is_unlocked(self.parameters["interact_object"]))
 
 class Grasp(ActionBehavior):
     """
@@ -393,7 +416,7 @@ class Place(ActionBehavior):
             parameters = parameters.copy() # Make sure not to change incoming
             parameters["target_object"] = '"grasped object"'
             parameters["relation"] = "on"
-            parameters["relative_object"] = '"table"'
+            parameters["relative_object"] = self.world_interface.get_id("CounterTop")
             postconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
         elif self.target_object == '"grasped object"':
             postconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
@@ -556,9 +579,10 @@ class Open(ActionBehavior):
     def __init__(self, name, parameters, world_interface, verbose=False):
         self.world_interface = world_interface
         self.internal_state = self.OpenStates.INIT
-        self.target_object = parameters["target_object"]
-        preconditions = [NearRobot('', {"target_object": self.target_object}, world_interface)]
-        postconditions = [Opened('', {"target_object": self.target_object}, world_interface)]
+        self.target_object = parameters["interact_object"]
+        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
+                         NearRobot('', {"destination": self.target_object}, world_interface)]
+        postconditions = [Opened('', {"interact_object": self.target_object}, world_interface)]
         
         name = Open.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
@@ -566,7 +590,7 @@ class Open(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "open " + extract_name(parameters["target_object"])
+        node_string = "open " + extract_name(parameters["interact_object"])
         node_string += "!"
         return node_string
     
@@ -593,12 +617,169 @@ class Open(ActionBehavior):
             self.check_for_success()
                     
         return self.state
+
+class Close(ActionBehavior):
+    """
+    Close an object (e.g. open microwave door or fridge door)
+    """
+    class CloseStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.CloseStates.INIT
+        self.target_object = parameters["interact_object"]
+        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
+                         NearRobot('', {"destination": self.target_object}, world_interface)]
+        postconditions = [Opened('', {"not": True, "interact_object": self.target_object}, world_interface)]
+        
+        name = Close.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "Close " + extract_name(parameters["interact_object"])
+        node_string += "!"
+        return node_string
+    
+    def initialise(self):
+        self.internal_state = self.OpenStates.INIT
+        ActionBehavior.initialise(self)
+        if not self.target_object in self.world_interface.object_opened.keys():
+            if self.world_interface.object_opened[self.target_object]:
+                self.success()
+        else:
+            self.failure()
+                
+    def check_for_success(self):
+        """Check if object is closed."""
+        if not self.world_interface.object_opened[self.target_object]:
+            self.success()
+            
+    def update(self):
+        self.check_for_success()
+        ActionBehavior.update(self)
+        
+        if self.state is pt.common.Status.RUNNING:
+            self.world_interface.close_obj(self.target_object)
+            self.check_for_success()
+                    
+        return self.state
+
+class ToggleOn(ActionBehavior):
+    """
+    Toggle on an object (e.g. microwave or coffee machine)
+    """
+    class ToggleOnStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.ToggleOn.INIT
+        self.target_object = parameters["interact_object"]
+        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
+                         NearRobot('', {"destination": self.target_object}, world_interface)]
+        postconditions = [Toggled('', {"interact_object": self.target_object}, world_interface)]
+        
+        name = ToggleOn.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "Toggle on " + extract_name(parameters["interact_object"])
+        node_string += "!"
+        return node_string
+    
+    def initialise(self):
+        self.internal_state = self.OpenStates.INIT
+        ActionBehavior.initialise(self)
+        if self.world_interface.is_toggled[self.target_object]:
+            self.success()
+        else:
+            self.failure()
+                
+    def check_for_success(self):
+        """Check if object is on."""
+        if self.world_interface.is_toggled[self.target_object]:
+            self.success()
+            
+    def update(self):
+        self.check_for_success()
+        ActionBehavior.update(self)
+        
+        if self.state is pt.common.Status.RUNNING:
+            self.world_interface.toggle_on(self.target_object)
+            self.check_for_success()
+                    
+        return self.state
+    
+class ToggleOff(ActionBehavior):
+    """
+    Toggle off an object (e.g. microwave or coffee machine)
+    """
+    class ToggleOffStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.ToggleOff.INIT
+        self.target_object = parameters["interact_object"]
+        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
+                         NearRobot('', {"destination": self.target_object}, world_interface)]
+        postconditions = [Toggled('', {"not": True, "interact_object": self.target_object}, world_interface)]
+        
+        name = ToggleOff.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "Toggle off " + extract_name(parameters["interact_object"])
+        node_string += "!"
+        return node_string
+    
+    def initialise(self):
+        self.internal_state = self.OpenStates.INIT
+        ActionBehavior.initialise(self)
+        if not self.world_interface.is_toggled[self.target_object]:
+            self.success()
+        else:
+            self.failure()
+                
+    def check_for_success(self):
+        """Check if object is off."""
+        if not self.world_interface.is_toggled[self.target_object]:
+            self.success()
+            
+    def update(self):
+        self.check_for_success()
+        ActionBehavior.update(self)
+        
+        if self.state is pt.common.Status.RUNNING:
+            self.world_interface.toggle_off(self.target_object)
+            self.check_for_success()
+                    
+        return self.state
     
 def get_condition_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked]
+    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked, Toggled]
 
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place, Navigate, Open]
+    return [Grasp, Place, Navigate, Open, ToggleOn, ToggleOff]
