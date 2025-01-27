@@ -40,7 +40,7 @@ from copy import deepcopy
 from enum import IntEnum
 import string
 import numpy as np
-
+from vlm.prompt import VLMPrompter
 import py_trees as pt
 
 class ParameterTypes(IntEnum):
@@ -345,12 +345,14 @@ class ActionBehavior(Behavior):
     """
     Class template for action behaviors
     """
-    def __init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=50, verbose=False):
+    def __init__(self, name, parameters, world_interface, preconditions, postconditions, vlm_prompter: VLMPrompter, max_ticks=50, verbose=False):
         self.state = None
         self.counter = 0
         self.max_ticks = max_ticks
         self.preconditions = preconditions
         self.postconditions = postconditions
+        self.vlm_prompter = vlm_prompter 
+        self.verbose = verbose
         super().__init__(name, parameters, world_interface)
 
     def initialise(self) -> None:
@@ -374,6 +376,89 @@ class ActionBehavior(Behavior):
         parameters["target_object"] = node_descriptor[marks[0]: marks[1] + 1]
         return parameters
 
+    def update_inputs(self):
+        """
+        Update dynamic inputs for the VLM Prompter.
+        """
+        updated_inputs = {
+            "images": self.world_interface.get_updated_image(),
+            "scene_graph": self.world_interface.get_updated_scene_graph(),
+            "hierarchical_summary": self.world_interface.get_updated_hierarchical_summary(),
+        }
+        self.vlm_prompter.update_inputs(**updated_inputs)
+
+    def precondition_check(self):
+        """
+        Check preconditions using detection, identification, and correction.
+        """
+        # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        detection_result = self.vlm_prompter.precondition_detection()
+
+        if "No" in detection_result:
+            # Identification
+            identification_result = self.vlm_prompter.precondition_identification()
+
+            # Correction
+            correction_result = self.vlm_prompter.precondition_correction()
+
+            if self.verbose:
+                print(f"Precondition Check - Detection: {detection_result}")
+                print(f"Precondition Check - Identification: {identification_result}")
+                print(f"Precondition Check - Correction: {correction_result}")
+
+            return False  # Preconditions not satisfied after corrections
+
+        return True  # Preconditions satisfied
+
+    def postcondition_check(self):
+        """
+        Check postconditions using detection, identification, and correction.
+        """
+        # # Update dynamic inputs
+        # self.update_inputs()
+
+        # Detection
+        detection_params = {
+            "template-user": self.vlm_prompter.skill_descriptions,
+            "params": self.vlm_prompter.postconditionverifier["template-detection"]["params"],
+        }
+        detection_result = self.vlm_prompter.postcondition_detection(detection_params)
+
+        if "No" in detection_result:
+            # Identification
+            identification_params = {
+                "template-user": self.vlm_prompter.skill_descriptions,
+                "params": self.vlm_prompter.postconditionverifier["template-identification"]["params"],
+            }
+            identification_result = self.vlm_prompter.postcondition_identification(identification_params, updated_inputs={
+                "images": self.world_interface.get_updated_images(),
+                "scene_graph": self.world_interface.get_updated_scene_graph(),
+                "hierarchical_summary": self.world_interface.get_updated_hierarchical_summary(),
+            })
+
+            # Correction
+            correction_params = {
+                "template-user": self.vlm_prompter.skill_descriptions,
+                "params": self.vlm_prompter.postconditionverifier["template-correction"]["params"],
+            }
+            correction_result = self.vlm_prompter.postcondition_correction(correction_params, updated_inputs={
+                "images": self.world_interface.get_updated_images(),
+                "scene_graph": self.world_interface.get_updated_scene_graph(),
+                "hierarchical_summary": self.world_interface.get_updated_hierarchical_summary(),
+            })
+
+            if self.verbose:
+                print(f"Postcondition Check - Detection: {detection_result}")
+                print(f"Postcondition Check - Identification: {identification_result}")
+                print(f"Postcondition Check - Correction: {correction_result}")
+
+            return False  # Postconditions not satisfied after corrections
+
+        return True  # Postconditions satisfied
+    
     def update(self) -> None:
         self.counter += 1
         if self.state == pt.common.Status.RUNNING:

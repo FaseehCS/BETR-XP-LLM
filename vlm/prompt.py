@@ -6,7 +6,7 @@ import datetime
 import numpy as np
 
 class VLMPrompter:
-    def __init__(self, gpt_version, api_key, root_folder_path, task_name, skill_descriptions=None, plan_execution=None, scene_graph=None, hierarchical_summary=None, images=None, failure_skill=None, failure_reason=None) -> None:
+    def __init__(self, gpt_version, api_key, root_folder_path, task_name, skill_descriptions=None, plan_execution=None, scene_graph=None, hierarchical_summary=None, images=None, failure_skill=None, failure_reason=None, prompts_json_file=None) -> None:
         self.gpt_version = gpt_version
         if not api_key:
             raise ValueError("OpenAI API key is not provided.")
@@ -16,6 +16,11 @@ class VLMPrompter:
         self.task_dir = os.path.join(root_folder_path, task_name)
         os.makedirs(self.task_dir, exist_ok=True)
 
+        # Load prompts JSON file
+        self.prompts_json_file = self.read_json_file(prompts_json_file)
+        if not self.prompts_json_file:
+            raise ValueError("Invalid or missing prompts JSON file.")
+        
         # Initialize file paths and attributes
         self.skill_descriptions = self.read_file(skill_descriptions) if skill_descriptions else None
         self.plan_execution = self.read_file(plan_execution) if plan_execution else None
@@ -25,6 +30,20 @@ class VLMPrompter:
         self.failure_skill = self.read_file(failure_skill) if failure_skill else None
         self.failure_reason = self.read_file(failure_reason) if failure_reason else None
 
+    @staticmethod
+    def read_json_file(file_path):
+        """
+        Reads the content of a JSON file and returns it as a Python dictionary.
+        """
+        try:
+            with open(file_path, 'r') as file:
+                return json.load(file)
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON from file {file_path}: {e}")
+            return None
+        except Exception as e:
+            print(f"Error reading JSON file {file_path}: {e}")
+            return None
     @staticmethod
     def read_file(file_path):
         """Reads the content of a file and returns it as a string."""
@@ -44,14 +63,41 @@ class VLMPrompter:
         except Exception as e:
             print(f"Error writing to file {file_path}: {e}")
 
-    def update_inputs(self, images=None, scene_graph=None, hierarchical_summary=None):
-        """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
-        if images:
-            self.images = [img for img in images if os.path.exists(img)]
-        if scene_graph and os.path.exists(scene_graph):
-            self.scene_graph = self.read_file(scene_graph)
-        if hierarchical_summary and os.path.exists(hierarchical_summary):
-            self.hierarchical_summary = self.read_file(hierarchical_summary)
+    # def update_inputs(self, images=None, scene_graph=None, hierarchical_summary=None):
+    #     """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
+    #     if images:
+    #         self.images = [img for img in images if os.path.exists(img)]
+    #     if scene_graph and os.path.exists(scene_graph):
+    #         self.scene_graph = self.read_file(scene_graph)
+    #     if hierarchical_summary and os.path.exists(hierarchical_summary):
+    #         self.hierarchical_summary = self.read_file(hierarchical_summary)
+
+    def extract_failure_skill(self, response):
+        """Extracts the failure skill from the GPT response."""
+        # Use a simple parsing logic or a regex to identify the skill name in the response
+        try:
+            # Example: Extract the failure skill from the response text
+            # Assuming response is structured like: "Root cause of failure is [SKILL] because [REASON]"
+            skill_start = response.find("Root cause of failure is") + len("Root cause of failure is")
+            skill_end = response.find("because")
+            failure_skill = response[skill_start:skill_end].strip()
+            return failure_skill
+        except Exception as e:
+            print(f"Error extracting failure skill: {e}")
+            return None
+
+
+    def extract_failure_reason(self, response):
+        """Extracts the failure reason from the GPT response."""
+        try:
+            # Example: Extract the reason from the response text
+            # Assuming response is structured like: "Root cause of failure is [SKILL] because [REASON]"
+            reason_start = response.find("because") + len("because")
+            failure_reason = response[reason_start:].strip()
+            return failure_reason
+        except Exception as e:
+            print(f"Error extracting failure reason: {e}")
+            return None
 
     def query(self, prompt: str, sampling_params: dict, save: bool, save_dir: str, query_file: str, response_file: str) -> str:
         """Send the prompt to the GPT model with optional image files and fail-safe retries."""
@@ -137,7 +183,7 @@ class VLMPrompter:
         """Generate a unique key based on the current date and time."""
         return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    def _populate_prompt(self, prompt, params, include_failure_info=False):
+    def _populate_prompt(self, prompt, include_failure_info=False):
         """Populates placeholders in the prompt with actual data."""
         prompt = prompt.replace("[SKILL_DESCRIPTIONS]", self.skill_descriptions or "")
         prompt = prompt.replace("[PLAN_EXECUTION]", self.plan_execution or "")
@@ -155,83 +201,107 @@ class VLMPrompter:
         return prompt
 
     # Precondition methods
-    def precondition_detection(self, params, updated_inputs=None):
+    def precondition_detection(self):
         """Handles the detection functionality for preconditions."""
-        if updated_inputs:
-            self.update_inputs(**updated_inputs)
 
+        params = self.prompts_json_file["preconditionverifier"]["template-detection"]
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        prompt = self._populate_prompt(prompt, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "preconditions_detection_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
-    def precondition_identification(self, params, updated_inputs=None):
+    def precondition_identification(self):
         """Handles the identification functionality for preconditions."""
-        if updated_inputs:
-            self.update_inputs(**updated_inputs)
-
+        
+        params = self.prompts_json_file["preconditionverifier"]["template-identification"]
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        prompt = self._populate_prompt(prompt, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "preconditions_identification_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_identification_response.txt")
         response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
-        self.write_file(params["failure-skill"], "Extracted failure skill from response")
-        self.write_file(params["failure-reason"], "Extracted reason from response")
+        failure_skill = self.extract_failure_skill(response)
+        failure_reason = self.extract_failure_reason(response)
+
+        if failure_skill:
+            self.write_file(params["failure-skill"], failure_skill)
+        else:
+            print("No failure skill identified.")
+
+        if failure_reason:
+            self.write_file(params["failure-reason"], failure_reason)
+        else:
+            print("No failure reason identified.")
         return response
 
-    def precondition_correction(self, params, updated_inputs=None):
+    def precondition_correction(self):
         """Handles the correction functionality for preconditions."""
-        if updated_inputs:
-            self.update_inputs(**updated_inputs)
 
-        self.failure_skill = self.read_file(params["failure-skill"])
-        self.failure_reason = self.read_file(params["failure-reason"])
+        params = self.prompts_json_file["preconditionverifier"]["template-correction"]
+        failure_skill = self.read_file(params["failure-skill"])
+        failure_reason = self.read_file(params["failure-reason"])
+        if not failure_skill or not failure_reason:
+            raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
+
+        self.failure_skill = failure_skill
+        self.failure_reason = failure_reason
 
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=True)
+        prompt = self._populate_prompt(prompt, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "preconditions_correction_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
     # Postcondition methods
-    def postcondition_detection(self, params, updated_inputs=None):
+    def postcondition_detection(self):
         """Handles the detection functionality for postconditions."""
-        if updated_inputs:
-            self.update_inputs(**updated_inputs)
-
+        
+        params = self.prompts_json_file["postconditionverifier"]["template-detection"]
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        prompt = self._populate_prompt(prompt, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "postconditions_detection_query.txt")
         response_file = os.path.join(self.task_dir, "postconditions_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
-    def postcondition_identification(self, params, updated_inputs=None):
+    def postcondition_identification(self):
         """Handles the identification functionality for postconditions."""
-        if updated_inputs:
-            self.update_inputs(**updated_inputs)
-
+        
+        params = self.prompts_json_file["postconditionverifier"]["template-identification"]
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        prompt = self._populate_prompt(prompt, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "postconditions_identification_query.txt")
         response_file = os.path.join(self.task_dir, "postconditions_identification_response.txt")
         response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
-        self.write_file(params["failure-skill"], "Extracted failure skill from response")
-        self.write_file(params["failure-reason"], "Extracted reason from response")
+        failure_skill = self.extract_failure_skill(response)
+        failure_reason = self.extract_failure_reason(response)
+
+        if failure_skill:
+            self.write_file(params["failure-skill"], failure_skill)
+        else:
+            print("No failure skill identified.")
+
+        if failure_reason:
+            self.write_file(params["failure-reason"], failure_reason)
+        else:
+            print("No failure reason identified.")
         return response
 
-    def postcondition_correction(self, params, updated_inputs=None):
+    def postcondition_correction(self):
         """Handles the correction functionality for postconditions."""
-        if updated_inputs:
-            self.update_inputs(**updated_inputs)
+    
+        params = self.prompts_json_file["postconditionverifier"]["template-correction"]
+        failure_skill = self.read_file(params["failure-skill"])
+        failure_reason = self.read_file(params["failure-reason"])
+        if not failure_skill or not failure_reason:
+            raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
 
-        self.failure_skill = self.read_file(params["failure-skill"])
-        self.failure_reason = self.read_file(params["failure-reason"])
+        self.failure_skill = failure_skill
+        self.failure_reason = failure_reason
 
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=True)
+        prompt = self._populate_prompt(prompt, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "postconditions_correction_query.txt")
         response_file = os.path.join(self.task_dir, "postconditions_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -239,31 +309,52 @@ class VLMPrompter:
     # Proactive Checker methods (static inputs)
     def proactive_detection(self, params):
         """Handles the detection functionality for proactive checking."""
+        
+        params = self.prompts_json_file["proactivechecker"]["template-detection"]
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        prompt = self._populate_prompt(prompt, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "proactive_detection_query.txt")
         response_file = os.path.join(self.task_dir, "proactive_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
     def proactive_identification(self, params):
         """Handles the identification functionality for proactive checking."""
+        
+        params = self.prompts_json_file["proactivechecker"]["template-identification"]
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=False)
+        prompt = self._populate_prompt(prompt, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "proactive_identification_query.txt")
         response_file = os.path.join(self.task_dir, "proactive_identification_response.txt")
         response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
-        self.write_file(params["failure-skill"], "Extracted failure skill from response")
-        self.write_file(params["failure-reason"], "Extracted reason from response")
+        failure_skill = self.extract_failure_skill(response)
+        failure_reason = self.extract_failure_reason(response)
+
+        if failure_skill:
+            self.write_file(params["failure-skill"], failure_skill)
+        else:
+            print("No failure skill identified.")
+
+        if failure_reason:
+            self.write_file(params["failure-reason"], failure_reason)
+        else:
+            print("No failure reason identified.")
         return response
 
     def proactive_correction(self, params):
         """Handles the correction functionality for proactive checking."""
-        self.failure_skill = self.read_file(params["failure-skill"])
-        self.failure_reason = self.read_file(params["failure-reason"])
+        
+        params = self.prompts_json_file["proactivechecker"]["template-correction"]
+        failure_skill = self.read_file(params["failure-skill"])
+        failure_reason = self.read_file(params["failure-reason"])
+        if not failure_skill or not failure_reason:
+            raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
+
+        self.failure_skill = failure_skill
+        self.failure_reason = failure_reason
 
         prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, params, include_failure_info=True)
+        prompt = self._populate_prompt(prompt, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "proactive_correction_query.txt")
         response_file = os.path.join(self.task_dir, "proactive_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
