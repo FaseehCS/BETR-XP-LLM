@@ -159,8 +159,8 @@
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",
-      "failure-skills": "path/to/failure_skills.txt",
-      "failure-reasons": "path/to/failure_reasons.txt"
+      "failure-skill": "path/to/failure_skill.txt",
+      "failure-reason": "path/to/failure_reason.txt"
     },
     "template-correction": {
       "template-system": "You are tasked with correcting a robot plan by adding conditions to address failure skills with given failure reasons.\nExample output: 1) No correction required as the plan has no failures.\n2) Add precondition [PRECONDITION] to the skill [SKILL] to address failure.\n3) Add postcondition [POSTCONDITION] to the skill [SKILL] to address failure.",
@@ -176,8 +176,8 @@
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",
-      "failure-skills": "path/to/failure_skills.txt",
-      "failure-reasons": "path/to/failure_reasons.txt"
+      "failure-skill": "path/to/failure_skill.txt",
+      "failure-reason": "path/to/failure_reason.txt"
     }
   }
 }
