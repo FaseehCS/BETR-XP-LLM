@@ -17,6 +17,8 @@ from reflect.main.action_primitives import *
 from reflect.main.get_local_sg import get_2d_bbox_from_3d_pcd
 from reflect.main.utils import *
 
+import cv2
+
 DIRECTIONS = {
     'w' : "MoveAhead",
     'a' : "MoveLeft",
@@ -159,7 +161,7 @@ class WorldInterface(BaseWorldInterface):
             rotateStepDegrees=90,
             width=960,
             height=960,
-            fieldOfView=60,
+            fieldOfView=120,
         )
         self.controller.step(action="SetHandSphereRadius", radius=0.1)
 
@@ -167,6 +169,9 @@ class WorldInterface(BaseWorldInterface):
         self.movable_objects = movable_objects
         self.scene_graph = SceneGraph(event=self.controller.last_event, task=None)
         self.scene_graph_nodes = [node.name for node in self.scene_graph.total_nodes]
+        self.scene_graph_file = ''
+        self.hierarchical_summary_file = ''
+        self.root_folder_path = ''
 
         self.grasped_object = None
         self.manipulation_target = None
@@ -180,6 +185,36 @@ class WorldInterface(BaseWorldInterface):
 
         self.error_message = ''
         self.failed_behavior = ''
+    
+    def get_updated_image(self , file_path= self.root_folder_path):
+        """ Returns the current image of the last event"""
+
+        image = self.controller.last_event.cv2img
+        return cv2.imwrite(file_path+'updated_image.png', image)
+    
+    def get_updated_scene_graph(self, file_path=self.root_folder_path):
+        """
+        Reads the scene graph from a file and returns its content as text.
+        """
+        try:
+            with open(file_path + self.scene_graph_file, 'r') as file:
+                scene_graph_text = file.read().strip()
+            return scene_graph_text
+        except FileNotFoundError:
+            print(f"[ERROR] Scene graph file '{self.scene_graph_file}' not found.")
+            return None
+        
+    def get_updated_hierarchical_summary(self, file_path=self.root_folder_path):
+        """
+        Reads the hierarchical summary from a file and returns its content as text.
+        """
+        try:
+            with open(file_path + self.hierarchical_summary_file, 'r') as file:
+                hierarchical_summary_text = file.read().strip()
+            return hierarchical_summary_text
+        except FileNotFoundError:
+            print(f"[ERROR] Hierarchical summary file '{self.hierarchical_summary_file}' not found.")
+            return None
 
     def get_feedback(self):
         event = self.controller.last_event
@@ -271,6 +306,7 @@ class WorldInterface(BaseWorldInterface):
 
     def move_linear(self, position, orientation=None, _target_object=None):
         """ Move the arm end-effector to a specific location """
+        print ("INFO",self.controller.last_event.metadata['arm'].keys())
         return self.controller.step(action="MoveArm",
                                     position=position,
                                     coordinateSpace="world",
