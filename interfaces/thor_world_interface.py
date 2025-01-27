@@ -150,6 +150,8 @@ class WorldInterface(BaseWorldInterface):
 
     def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], known_objects=[], gridSize=0.25, root_folder_path=''):
         self.root_folder_path = root_folder_path
+        video_path = os.path.join(root_folder_path, 'video.avi')
+        self.video_color = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'XVID'), 3, (960, 960))
         self.gridSize = gridSize
 
         self.grid = np.mgrid[-5:5.1:gridSize, -5:5.1:gridSize].transpose(1,2,0)
@@ -238,6 +240,7 @@ class WorldInterface(BaseWorldInterface):
         self.robot_orientation = self.controller.last_event.metadata['agent']['rotation']
 
         self.color_frame = self.controller.last_event.cv2img
+        self.video_color.write(self.color_frame)
         self.depth_frame = self.controller.last_event.depth_frame
 
         for obj in event.metadata['objects']:

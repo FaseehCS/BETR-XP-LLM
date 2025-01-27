@@ -9,7 +9,7 @@ from interfaces.thor_world_interface import WorldInterface
 
 def get_node(node_descriptor, world_interface, verbose = False):
     """ Returns a node object given the descriptor string """
-    return behaviors.common_behaviors.get_node(node_descriptor, world_interface, verbose)
+    return behaviors.common_behaviors.get_node(node_descriptor, world_interface, verbose=verbose)
 
 def compatible(_condition1, _condition2):
     """ TODO this is just temp to get it to run, needs to be fixed if we want priorities to work"""

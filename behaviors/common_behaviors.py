@@ -238,6 +238,7 @@ class ParameterizedNode():
 def get_node(
     node_descriptor: Any = None,
     world_interface: Any = None,
+    vlm: VLMPrompter = None,
     verbose: bool = False
 ) -> Tuple[Any, bool]:
     """Return a py_trees behavior or composite given the descriptor."""
@@ -269,7 +270,7 @@ def get_node(
             has_children = True
         else:
             print("Warning: Unrecognized node. Adding generic node")
-            node = ActionBehavior(node_descriptor, {}, world_interface, [], [])
+            node = ActionBehavior(node_descriptor, {}, world_interface, [], [], vlm)
 
     return node, has_children
 
