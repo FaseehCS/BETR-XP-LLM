@@ -40,7 +40,7 @@ import logging
 from typing import Any, List, Tuple
 import py_trees as pt
 from py_trees.composites import Selector, Sequence
-from behaviors.common_behaviors import ActionBehavior, RandomSelector
+from behaviors.common_behaviors import ActionBehavior, RandomSelector, VLMPrompter
 from behaviors.behavior_lists import BehaviorLists
 from planner.constraints_identification import contains_conflicting
 from interfaces.py_trees_interface import PyTree, PyTreeParameters
@@ -52,7 +52,8 @@ logger = logging.getLogger('planner')
 def handle_precondition(
     precondition: List[str],
     behaviors: Any,
-    world_interface: Any
+    world_interface: Any,
+    vlm
 ) -> List[pt.trees.BehaviourTree]:
     """Handle pre-condition by exploiting the backchaining method."""
     # print("Condition in: ", precondition)
@@ -64,7 +65,7 @@ def handle_precondition(
 
     for action in action_list:
         try:
-            action_node = action("", condition_parameters, world_interface)
+            action_node = action("", condition_parameters, world_interface, vlm)
         except KeyError:
             continue
 
@@ -95,7 +96,8 @@ def handle_precondition(
 def extend_leaf_node(
     leaf_node: pt.behaviour.Behaviour,
     behaviors: Any,
-    world_interface: Any
+    world_interface: Any,
+    vlm: VLMPrompter
 ) -> None:
     """
     Extend the failing node.
@@ -111,7 +113,7 @@ def extend_leaf_node(
     bt.add_child(leaf_node)
     # print("What is failing? ", leaf_node.name)
 
-    extended = handle_precondition(leaf_node, behaviors, world_interface)
+    extended = handle_precondition(leaf_node, behaviors, world_interface, vlm)
     for tree in extended:
         bt.add_child(tree)
 
@@ -120,6 +122,7 @@ def expand_tree(
     node: Any,
     behaviors: Any,
     world_interface: Any,
+    vlm: VLMPrompter,
     depth: int = 0
 ) -> None:
     """Expand the part of the tree that fails."""
@@ -134,15 +137,15 @@ def expand_tree(
         # print("Fallback node fails\n")
         for index, child in enumerate(node.children):
             if index >= 1:  # Normally there will only be two children
-                expand_tree(child, behaviors, world_interface, depth+1)
+                expand_tree(child, behaviors, world_interface, vlm, depth+1)
     elif isinstance(node, (Sequence, RandomSelector)):
         # print("Sequence node fails\n")
         for _, child in enumerate(node.children):
             if child.status == pt.common.Status.FAILURE:
                 # print("Child that fails: ", child.name)
-                expand_tree(child, behaviors, world_interface, depth+1)
+                expand_tree(child, behaviors, world_interface, vlm, depth+1)
     elif isinstance(node, pt.behaviour.Behaviour) and not isinstance(node, ActionBehavior) and node.status == pt.common.Status.FAILURE:
-        extend_leaf_node(node, behaviors, world_interface)
+        extend_leaf_node(node, behaviors, world_interface, vlm)
     # else:
         # print("Tree", node.name)
 
@@ -295,6 +298,7 @@ def expand_composite_leafs(
 def plan(
     world_interface: Any,
     behaviors: Any,
+    vlm: VLMPrompter,
     goals: Any = None,
     behavior_lists: Any = None,
     remove_redundant_conditions: bool = True,
@@ -319,7 +323,7 @@ def plan(
         print("Tick: ", i)
         print(pt.display.unicode_tree(root=tree, show_status=True))
         if tree.status is pt.common.Status.FAILURE:
-            expand_tree(tree, behaviors, world_interface)
+            expand_tree(tree, behaviors, world_interface, vlm)
 
             print(pt.display.unicode_tree(root=tree, show_status=True))
         elif tree.status is pt.common.Status.SUCCESS:

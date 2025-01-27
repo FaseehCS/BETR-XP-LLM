@@ -1,7 +1,7 @@
 """ A module containing all the behaviors the robot can use inside ai2thor environment. """
 from enum import IntEnum
 import numpy as np
-from behaviors.common_behaviors import Behavior, ActionBehavior
+from behaviors.common_behaviors import Behavior, ActionBehavior, VLMPrompter
 import behaviors.common_behaviors
 import py_trees as pt
 
@@ -264,7 +264,7 @@ class Grasp(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
 
-    def __init__(self, name, parameters, world_interface: WorldInterface, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm, verbose=False):
         self.world_interface = world_interface
         name = Grasp.to_string(parameters)
         self.target_object = None
@@ -285,7 +285,7 @@ class Grasp(ActionBehavior):
                                                 "target_object": parameters["target_object"],
                                                 "relation": relation,
                                                 "relative_object": relative_object}, world_interface)]
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -396,7 +396,7 @@ class Place(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
 
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         self.release_position = None
         self.approach_position = None
         self.orientation = None
@@ -421,7 +421,7 @@ class Place(ActionBehavior):
         elif self.target_object == '"grasped object"':
             postconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
         name = Place.to_string(parameters)
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -476,7 +476,8 @@ class Place(ActionBehavior):
         ActionBehavior.update(self)
         
         if self.state is pt.common.Status.RUNNING:
-            print('executing grasp action')
+            print('executing placing action')
+            self.precondition_check()
             self.world_interface.place_obj(self.target_object, self.parameters["relative_object"])
             self.check_for_success()
             if self.check_for_failure():
@@ -522,7 +523,7 @@ class Navigate(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
 
-    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm, _verbose=False):
         self.world_interface = world_interface
         self.internal_state = self.NavigateStates.INIT
         self.target_object = parameters["destination"]
@@ -531,7 +532,7 @@ class Navigate(ActionBehavior):
         postconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
         
         name = Navigate.to_string(parameters)
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=_verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=False)
     
     @staticmethod
     def to_string(parameters):
@@ -576,7 +577,7 @@ class Open(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
         
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         self.world_interface = world_interface
         self.internal_state = self.OpenStates.INIT
         self.target_object = parameters["interact_object"]
@@ -585,7 +586,7 @@ class Open(ActionBehavior):
         postconditions = [Opened('', {"interact_object": self.target_object}, world_interface)]
         
         name = Open.to_string(parameters)
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
         
     @staticmethod
     def to_string(parameters):
@@ -629,7 +630,7 @@ class Close(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
         
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         self.world_interface = world_interface
         self.internal_state = self.CloseStates.INIT
         self.target_object = parameters["interact_object"]
@@ -638,7 +639,7 @@ class Close(ActionBehavior):
         postconditions = [Opened('', {"not": True, "interact_object": self.target_object}, world_interface)]
         
         name = Close.to_string(parameters)
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
         
     @staticmethod
     def to_string(parameters):
@@ -648,7 +649,7 @@ class Close(ActionBehavior):
         return node_string
     
     def initialise(self):
-        self.internal_state = self.OpenStates.INIT
+        self.internal_state = self.CloseStates.INIT
         ActionBehavior.initialise(self)
         if not self.target_object in self.world_interface.object_opened.keys():
             if self.world_interface.object_opened[self.target_object]:
@@ -682,16 +683,16 @@ class ToggleOn(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
         
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         self.world_interface = world_interface
-        self.internal_state = self.ToggleOn.INIT
+        self.internal_state = self.ToggleOnStates.INIT
         self.target_object = parameters["interact_object"]
         preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
                          NearRobot('', {"destination": self.target_object}, world_interface)]
         postconditions = [Toggled('', {"interact_object": self.target_object}, world_interface)]
         
         name = ToggleOn.to_string(parameters)
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
         
     @staticmethod
     def to_string(parameters):
@@ -701,7 +702,7 @@ class ToggleOn(ActionBehavior):
         return node_string
     
     def initialise(self):
-        self.internal_state = self.OpenStates.INIT
+        self.internal_state = self.ToggleOnStates.INIT
         ActionBehavior.initialise(self)
         if self.world_interface.is_toggled[self.target_object]:
             self.success()
@@ -734,16 +735,16 @@ class ToggleOff(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
         
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         self.world_interface = world_interface
-        self.internal_state = self.ToggleOff.INIT
+        self.internal_state = self.ToggleOffStates.INIT
         self.target_object = parameters["interact_object"]
         preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
                          NearRobot('', {"destination": self.target_object}, world_interface)]
         postconditions = [Toggled('', {"not": True, "interact_object": self.target_object}, world_interface)]
         
         name = ToggleOff.to_string(parameters)
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
         
     @staticmethod
     def to_string(parameters):
@@ -753,7 +754,7 @@ class ToggleOff(ActionBehavior):
         return node_string
     
     def initialise(self):
-        self.internal_state = self.OpenStates.INIT
+        self.internal_state = self.ToggleOffStates.INIT
         ActionBehavior.initialise(self)
         if not self.world_interface.is_toggled[self.target_object]:
             self.success()

@@ -148,7 +148,8 @@ class SceneGraph(BaseSceneGraph):
 
 class WorldInterface(BaseWorldInterface):
 
-    def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], known_objects=[], gridSize=0.25):
+    def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], known_objects=[], gridSize=0.25, root_folder_path=''):
+        self.root_folder_path = root_folder_path
         self.gridSize = gridSize
 
         self.grid = np.mgrid[-5:5.1:gridSize, -5:5.1:gridSize].transpose(1,2,0)

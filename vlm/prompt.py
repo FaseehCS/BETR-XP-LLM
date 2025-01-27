@@ -6,7 +6,7 @@ import datetime
 import numpy as np
 
 class VLMPrompter:
-    def __init__(self, gpt_version, api_key, root_folder_path, task_name, skill_descriptions=None, plan_execution=None, scene_graph=None, hierarchical_summary=None, images=None, failure_skill=None, failure_reason=None, prompts_json_file=None) -> None:
+    def __init__(self, gpt_version="gpt-4-vision", api_key=None, root_folder_path=None, task_name=None, skill_descriptions=None, plan_execution=None, scene_graph=None, hierarchical_summary=None, images=None, failure_skill=None, failure_reason=None, prompts_json_file=None) -> None:
         self.gpt_version = gpt_version
         if not api_key:
             raise ValueError("OpenAI API key is not provided.")
