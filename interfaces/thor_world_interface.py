@@ -193,30 +193,38 @@ class WorldInterface(BaseWorldInterface):
             self.object_dict[obj] = object_id
             self.object_position_known[object_id] = True
     
-    def get_updated_image(self , file_path= self.root_folder_path):
+    def get_updated_image(self , file_path=None):
         """ Returns the current image of the last event"""
-
+        if file_path is None:
+            file_path=self.root_folder_path
         image = self.controller.last_event.cv2img
-        return cv2.imwrite(file_path+'updated_image.png', image)
+        file_path = os.path.join(file_path, 'updated_image.png')
+        return cv2.imwrite(file_path, image)
     
-    def get_updated_scene_graph(self, file_path=self.root_folder_path):
+    def get_updated_scene_graph(self, file_path=None):
         """
         Reads the scene graph from a file and returns its content as text.
         """
+        if file_path is None:
+            file_path=self.root_folder_path
         try:
-            with open(file_path + self.scene_graph_file, 'r') as file:
+            file_path = os.path.join(file_path, self.scene_graph_file)        
+            with open(file_path, 'r') as file:
                 scene_graph_text = file.read().strip()
             return scene_graph_text
         except FileNotFoundError:
             print(f"[ERROR] Scene graph file '{self.scene_graph_file}' not found.")
             return None
         
-    def get_updated_hierarchical_summary(self, file_path=self.root_folder_path):
+    def get_updated_hierarchical_summary(self, file_path=None):
         """
         Reads the hierarchical summary from a file and returns its content as text.
         """
+        if file_path is None:
+            file_path=self.root_folder_path
         try:
-            with open(file_path + self.hierarchical_summary_file, 'r') as file:
+            file_path = os.path.join(file_path, self.hierarchical_summary_file)        
+            with open(file_path, 'r') as file:
                 hierarchical_summary_text = file.read().strip()
             return hierarchical_summary_text
         except FileNotFoundError:
