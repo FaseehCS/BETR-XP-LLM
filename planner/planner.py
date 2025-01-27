@@ -314,6 +314,7 @@ def plan(
     for i in range(20):
         if not handle_priority(tree, behaviors):
             break
+        world_interface.get_feedback()
         tree.tick_once()
         print("Tick: ", i)
         print(pt.display.unicode_tree(root=tree, show_status=True))
