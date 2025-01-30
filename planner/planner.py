@@ -44,6 +44,8 @@ from behaviors.common_behaviors import ActionBehavior, RandomSelector, VLMPrompt
 from behaviors.behavior_lists import BehaviorLists
 from planner.constraints_identification import contains_conflicting
 from interfaces.py_trees_interface import PyTree, PyTreeParameters
+import json
+import os
 
 
 logger = logging.getLogger('planner')
@@ -53,7 +55,7 @@ def handle_precondition(
     precondition: List[str],
     behaviors: Any,
     world_interface: Any,
-    vlm
+    vlm: VLMPrompter
 ) -> List[pt.trees.BehaviourTree]:
     """Handle pre-condition by exploiting the backchaining method."""
     # print("Condition in: ", precondition)
@@ -62,7 +64,21 @@ def handle_precondition(
     best_cost = float('inf')
 
     action_list = behaviors.get_action_nodes()
+    condition_list = behaviors.get_condition_nodes()
 
+    skill_descriptions = {}
+    condition_descriptions = {}
+    descriptions = {}
+    for action in action_list:
+        skill_descriptions[action.name] = action.description
+    for condition in condition_list:
+        condition_descriptions[condition.name] = condition.description
+
+    descriptions["skills"] = skill_descriptions
+    descriptions["conditions"] = condition_descriptions
+    file_path = os.path.join(vlm.resources, "skill_descriptions.json")
+    with open(file_path, "w") as f:
+        json.dump(descriptions, f)
     for action in action_list:
         try:
             action_node = action("", condition_parameters, world_interface, vlm)

@@ -6,29 +6,36 @@ import datetime
 import numpy as np
 
 class VLMPrompter:
-    def __init__(self, gpt_version="gpt-4-vision", api_key=None, root_folder_path=None, task_name=None, skill_descriptions=None, plan_execution=None, scene_graph=None, hierarchical_summary=None, images=None, failure_skill=None, failure_reason=None, prompts_json_file=None) -> None:
+    def __init__(self, gpt_version="gpt-4-vision", api_key=None, root_folder_path=None, task_name=None, skill_descriptions=None, plan_execution=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt", images=None, failure_skill=None, failure_reason=None, resources=None) -> None:
         self.gpt_version = gpt_version
         if not api_key:
             raise ValueError("OpenAI API key is not provided.")
         openai.api_key = api_key
+        self.root_folder_path = root_folder_path
 
         # Task-specific directory
         self.task_dir = os.path.join(root_folder_path, task_name)
         os.makedirs(self.task_dir, exist_ok=True)
+        
+        # Reset hierarchical summary
+        with open(os.path.join(self.task_dir, hierarchical_summary), 'w') as f:
+            f.write("")
 
         # Load prompts JSON file
-        self.prompts_json_file = self.read_json_file(prompts_json_file)
+        self.resources = resources
+        self.prompts_json_file = self.read_json_file(os.path.join(resources, "prompts.json"))
+        self.images = images if images else []  # List of image file paths
         if not self.prompts_json_file:
             raise ValueError("Invalid or missing prompts JSON file.")
         
+    def get_files(self):
         # Initialize file paths and attributes
-        self.skill_descriptions = self.read_file(skill_descriptions) if skill_descriptions else None
-        self.plan_execution = self.read_file(plan_execution) if plan_execution else None
-        self.scene_graph = self.read_file(scene_graph) if scene_graph else None
-        self.hierarchical_summary = self.read_file(hierarchical_summary) if hierarchical_summary else None
-        self.images = images if images else []  # List of image file paths
-        self.failure_skill = self.read_file(failure_skill) if failure_skill else None
-        self.failure_reason = self.read_file(failure_reason) if failure_reason else None
+        file = os.path.join(self.resources, "skill_descriptions.json")
+        self.skill_descriptions = self.read_json_file(file) if os.path.exists(file) else None
+        
+        files = ["plan_execution", "scene_graph", "hierarchical_summary", "failure_skill", "failure_reason"]        
+        self.plan_execution, self.scene_graph, self.hierarchical_summary, \
+            self.failure_skill, self.failure_reason = [self.read_file(os.path.join(self.resources, f + ".txt")) if os.path.exists(f) else None for f in files]
 
     @staticmethod
     def read_json_file(file_path):
@@ -49,7 +56,7 @@ class VLMPrompter:
         """Reads the content of a file and returns it as a string."""
         try:
             with open(file_path, 'r') as file:
-                return file.read().strip()
+                return file.read()
         except Exception as e:
             print(f"Error reading file {file_path}: {e}")
             return None
@@ -63,14 +70,17 @@ class VLMPrompter:
         except Exception as e:
             print(f"Error writing to file {file_path}: {e}")
 
-    def update_inputs(self, images=None, scene_graph=None, hierarchical_summary=None):
+    def update_inputs(self, images=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt"):
         """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
+        file = os.path.join(self.resources, "skill_descriptions.json")
+        self.skill_descriptions = self.read_json_file(file) if os.path.exists(file) else None
+
         if images:
             self.images = [img for img in images if os.path.exists(img)]
-        if scene_graph and os.path.exists(scene_graph):
-            self.scene_graph = self.read_file(scene_graph)
-        if hierarchical_summary and os.path.exists(hierarchical_summary):
-            self.hierarchical_summary = self.read_file(hierarchical_summary)
+
+        files = ["plan_execution.txt", scene_graph, hierarchical_summary, "failure_skill.txt", "failure_reason.txt"]
+        self.plan_execution, self.scene_graph, self.hierarchical_summary, \
+            self.failure_skill, self.failure_reason = [self.read_file(os.path.join(self.task_dir, f)) if os.path.exists(os.path.join(self.task_dir, f)) else None for f in files]
 
     def extract_failure_skill(self, response):
         """Extracts the failure skill from the GPT response."""
@@ -185,7 +195,7 @@ class VLMPrompter:
 
     def _populate_prompt(self, prompt, include_failure_info=False):
         """Populates placeholders in the prompt with actual data."""
-        prompt = prompt.replace("[SKILL_DESCRIPTIONS]", self.skill_descriptions or "")
+        prompt = prompt.replace("[SKILL_DESCRIPTIONS]", f"{self.skill_descriptions}" or "")
         prompt = prompt.replace("[PLAN_EXECUTION]", self.plan_execution or "")
         prompt = prompt.replace("[SCENE_GRAPH]", self.scene_graph or "")
         prompt = prompt.replace("[HIERARCHICAL_SUMMARY]", self.hierarchical_summary or "")

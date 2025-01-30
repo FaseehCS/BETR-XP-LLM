@@ -18,6 +18,7 @@ from reflect.main.get_local_sg import get_2d_bbox_from_3d_pcd
 from reflect.main.utils import *
 
 import cv2
+import copy
 
 DIRECTIONS = {
     'w' : "MoveAhead",
@@ -151,7 +152,7 @@ class WorldInterface(BaseWorldInterface):
     def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], known_objects=[], gridSize=0.25, root_folder_path=''):
         self.root_folder_path = root_folder_path
         video_path = os.path.join(root_folder_path, 'video.avi')
-        self.video_color = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'XVID'), 3, (960, 960))
+        self.video_color = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'XVID'), 4, (960, 960))
         self.gridSize = gridSize
 
         self.grid = np.mgrid[-5:5.1:gridSize, -5:5.1:gridSize].transpose(1,2,0)
@@ -173,9 +174,9 @@ class WorldInterface(BaseWorldInterface):
         self.movable_objects = movable_objects
         self.scene_graph = SceneGraph(event=self.controller.last_event, task=None)
         self.scene_graph_nodes = [node.name for node in self.scene_graph.total_nodes]
-        self.scene_graph_file = ''
-        self.hierarchical_summary_file = ''
-        self.root_folder_path = ''
+        self.scene_graph_file = 'scene_graph.txt'
+        self.text_graph = ''
+        self.hierarchical_summary_file = 'hierarchical_summary.txt'
 
         self.grasped_object = None
         self.manipulation_target = None
@@ -186,11 +187,14 @@ class WorldInterface(BaseWorldInterface):
         self.object_opened = {}
         self.object_unlocked = {}
         self.held_prev = []
-        self.get_feedback()
-
+        self.scene_changes = []
         self.error_message = ''
         self.failed_behavior = ''
         
+        for obj in self.controller.last_event.metadata["objects"]:
+            self.update_scene_graph(obj, self.controller.last_event)
+        # self.get_feedback()
+
         for obj in known_objects:
             object_id = self.get_id(obj)
             self.object_dict[obj] = object_id
@@ -202,34 +206,50 @@ class WorldInterface(BaseWorldInterface):
             file_path=self.root_folder_path
         image = self.controller.last_event.cv2img
         file_path = os.path.join(file_path, 'updated_image.png')
-        return cv2.imwrite(file_path, image)
+        cv2.imwrite(file_path, image)
+        return [file_path]
     
-    def get_updated_scene_graph(self, file_path=None):
+    def update_scene_graph_file(self, file_path=None):
         """
         Reads the scene graph from a file and returns its content as text.
         """
+        self.text_graph = ""
+        for edge in self.scene_graph.edges.keys():
+            edge_text = f"{self.scene_graph.edges[edge]}"
+            self.text_graph += edge_text + "\n"
+
         if file_path is None:
             file_path=self.root_folder_path
         try:
             file_path = os.path.join(file_path, self.scene_graph_file)        
-            with open(file_path, 'r') as file:
-                scene_graph_text = file.read().strip()
-            return scene_graph_text
+            with open(file_path, 'w') as f:
+                f.write(self.text_graph)
+            return self.scene_graph_file
         except FileNotFoundError:
             print(f"[ERROR] Scene graph file '{self.scene_graph_file}' not found.")
             return None
         
-    def get_updated_hierarchical_summary(self, file_path=None):
+    def update_hierarchical_summary_file(self, file_path=None):
         """
         Reads the hierarchical summary from a file and returns its content as text.
         """
+        if self.scene_changes == []:
+            return
+
+        Timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        observation = ""
+        for edge in self.scene_changes:
+            observation += f" {edge},"
+        self.text_summary = f"Timestamp: {Timestamp} | Observation:{observation}\n"
+        self.scene_changes = []
+        
         if file_path is None:
             file_path=self.root_folder_path
         try:
             file_path = os.path.join(file_path, self.hierarchical_summary_file)        
-            with open(file_path, 'r') as file:
-                hierarchical_summary_text = file.read().strip()
-            return hierarchical_summary_text
+            with open(file_path, 'a') as f:
+                f.write(self.text_summary)
+            return self.hierarchical_summary_file
         except FileNotFoundError:
             print(f"[ERROR] Hierarchical summary file '{self.hierarchical_summary_file}' not found.")
             return None
@@ -243,13 +263,16 @@ class WorldInterface(BaseWorldInterface):
         self.video_color.write(self.color_frame)
         self.depth_frame = self.controller.last_event.depth_frame
 
+        pre_edges = copy.deepcopy(self.scene_graph.edges)
+        pre_nodes = self.scene_graph_nodes
         for obj in event.metadata['objects']:
             self.update_scene_graph(obj, event) 
-             
             if obj['pickupable']:
                 self.graspable_objects.append(obj['objectId'])
                 if obj['isPickedUp']:
                     self.grasped_object = obj['objectId']
+                    self.scene_graph_nodes.append(obj['objectId'])
+                    self.scene_graph.edges[(obj['objectId'],"robot_gripper")] = GraphEdge(obj['objectId'], "robot_gripper", edge_type="in")
                     self.held_prev.append(obj['objectId'])
             if obj['moveable']:
                 self.movable_objects.append(obj['objectId'])                
@@ -257,6 +280,19 @@ class WorldInterface(BaseWorldInterface):
                 self.object_unlocked[obj['objectId']] = obj['isToggled']
             if obj['openable']:
                 self.object_opened[obj['objectId']] = obj['isOpen']
+            # if obj['rotation']['x'] < 0.1 and obj['rotation']['z'] < 0.1:
+            #     self.object_upright[obj['objectId']] = True
+            # else:
+            #     self.object_upright[obj['objectId']] = False
+        
+
+        for edge in self.scene_graph.edges.keys():
+            if edge not in pre_edges.keys() or self.scene_graph.edges[edge].edge_type != pre_edges[edge].edge_type:
+                if edge[0] in pre_nodes or edge[1] in pre_nodes:
+                    self.scene_changes.append(self.scene_graph.edges[edge])
+
+        self.update_scene_graph_file()
+        self.update_hierarchical_summary_file()
 
         return True
     
@@ -273,10 +309,7 @@ class WorldInterface(BaseWorldInterface):
                 self.scene_graph.add_node_wo_edge(node)
                 if node is not None:
                     self.scene_graph.add_node(node)
-                # if obj['rotation']['x'] < 0.1 and obj['rotation']['z'] < 0.1:
-                #     self.object_upright[obj['objectId']] = True
-                # else:
-                #     self.object_upright[obj['objectId']] = False
+
             elif obj['objectId'] in self.object_position_known.keys():
                 self.scene_graph_nodes.append(obj['objectId'])
                 if self.object_position_known[obj['objectId']] == True:
@@ -284,13 +317,35 @@ class WorldInterface(BaseWorldInterface):
             else:
                 self.object_position_known[obj['objectId']] = False
         elif obj['visible']:
-            self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
-            self.object_position_known[obj['objectId']] = True
+            if not self.object_position_known[obj['objectId']]:
+                self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+                self.object_position_known[obj['objectId']] = True
+
+            if self.calc_distance3d(obj['objectId'], self.dict_to_pos(obj['position'])) > 0.05:
+                self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+
+                remove_list = []
+                for edge in self.scene_graph.edges.keys():
+                    if obj['objectId'] in edge:
+                        remove_list.append(edge)
+                for edge in remove_list:
+                    self.scene_graph.edges.pop(edge)
+
+                node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
+                # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
+                self.scene_graph.add_node_wo_edge(node)
+                if node is not None:
+                    self.scene_graph.add_node(node)
+                
         elif self.object_position_known[obj['objectId']] == False:
             self.scene_graph_nodes.remove(obj['objectId'])
             for edge in self.scene_graph.edges.keys():
                 if obj['objectId'] in edge:
-                    self.scene_graph.edges.pop(edge) 
+                    self.scene_graph.edges.pop(edge)
+
+    def calc_distance3d(self, target_object, position):
+        """ Calculates the distance between target object and given position """
+        return np.linalg.norm(self.object_positions[target_object] - position)
 
     def get_id(self, obj_name):
         """ Get the object id from the object name """

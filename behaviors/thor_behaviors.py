@@ -25,6 +25,9 @@ class AtPos(Behavior):
     """
     Check if object is at position
     """
+    name = "At_Pos"
+    description = "Check if object is at position"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = AtPos.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -91,6 +94,9 @@ class Grasped(Behavior):
     """
     Check if object is grasped
     """
+    name = "grasped"
+    description = "Check if object is in robot's gripper"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Grasped.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -119,6 +125,9 @@ class LocationKnown(Behavior):
     """
     Check if object location is known
     """
+    name = "Location_Known"
+    description = "Check if object location is known"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = LocationKnown.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -132,7 +141,7 @@ class LocationKnown(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = parameters["target_object"] + " location known?"
+        node_string = extract_name(parameters["target_object"]) + " location known?"
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
@@ -142,6 +151,9 @@ class Upright(Behavior):
     """
     Check if object is standing upright
     """
+    name = "Upright"
+    description = "Check if object is standing upright"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Upright.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -165,6 +177,9 @@ class NearRobot(Behavior):
     """
     Check if object is within reach
     """
+    name = "Near_Robot"
+    description = "Check if object is within reacht"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = NearRobot.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -188,6 +203,9 @@ class Opened(Behavior):
     """
     Check if object is open
     """
+    name = "Opened"
+    description = "Check if object is opened"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Opened.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -211,6 +229,9 @@ class Toggled(Behavior):
     """
     Check if object is open
     """
+    name = "Toggled"
+    description = "Check if object is turned on"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Opened.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -234,6 +255,9 @@ class Unlocked(Behavior):
     """
     Check if object is unlocked
     """
+    name = "Unlocked"
+    description = "Check if object is unlocked"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Unlocked.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -257,6 +281,9 @@ class Grasp(ActionBehavior):
     """
     Grasp an object
     """
+    name = "Pick"
+    description = "Picks up a specified object."
+
     class GraspStates(IntEnum):
         """Define the internal states during execution."""
         INIT = 1
@@ -363,6 +390,7 @@ class Grasp(ActionBehavior):
         
         if self.state is pt.common.Status.RUNNING:
             print('executing grasp action')
+            self.hierarchical_summary()
             self.calc_grasp_position()
             self.calc_approach_position()
             # self.world_interface.move_armbase()
@@ -372,6 +400,7 @@ class Grasp(ActionBehavior):
             self.check_for_success()
             if self.check_for_failure():
                 self.failure()
+            self.end_hierarchical_summary()
 
         return self.state
 
@@ -389,6 +418,9 @@ class Place(ActionBehavior):
     """
     Place object on position
     """
+    name = "Place"
+    description = "Place an object with specified relation (at, on, inside) (e.g. Place Cup Inside microwave, place apple On countertop)."
+
     class PlaceStates(IntEnum):
         """Define the internal states during execution."""
         INIT = 1
@@ -476,12 +508,14 @@ class Place(ActionBehavior):
         ActionBehavior.update(self)
         
         if self.state is pt.common.Status.RUNNING:
+            self.hierarchical_summary()
             print('executing placing action')
             self.precondition_check()
             self.world_interface.place_obj(self.target_object, self.parameters["relative_object"])
             self.check_for_success()
             if self.check_for_failure():
                 self.failure()
+            self.end_hierarchical_summary()
 
         return self.state
 
@@ -515,7 +549,9 @@ class Navigate(ActionBehavior):
     """
     Navigate to a specific location in the environment.
     """
-    
+    name = "navigate"
+    description = "Navigate to a specific location in the environment."
+
     class NavigateStates(IntEnum):
         """Define the internal states during execution."""
         INIT = 1
@@ -528,7 +564,7 @@ class Navigate(ActionBehavior):
         self.internal_state = self.NavigateStates.INIT
         self.target_object = parameters["destination"]
         
-        preconditions = []
+        preconditions = [LocationKnown('', {"target_object": self.target_object}, world_interface)]
         postconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
         
         name = Navigate.to_string(parameters)
@@ -557,12 +593,14 @@ class Navigate(ActionBehavior):
         ActionBehavior.update(self)
         
         if self.state is pt.common.Status.RUNNING:
+            self.hierarchical_summary()
             if not self.world_interface.object_position_known[self.target_object]:
                 return self.failure()
 
             # self.world_interface.move_armbase()
             self.world_interface.navigate_to_obj(self.target_object)
             self.check_for_success()
+            self.end_hierarchical_summary()
 
         return self.state
     
@@ -570,6 +608,9 @@ class Open(ActionBehavior):
     """
     Open an object (e.g. open microwave door or fridge door)
     """
+    name = "Open"
+    description = "Open an object (e.g. open microwave door or fridge door)"
+
     class OpenStates(IntEnum):
         """Define the internal states"""
         INIT = 1
@@ -614,15 +655,20 @@ class Open(ActionBehavior):
         ActionBehavior.update(self)
         
         if self.state is pt.common.Status.RUNNING:
+            self.hierarchical_summary()
             self.world_interface.open_obj(self.target_object)
             self.check_for_success()
+            self.end_hierarchical_summary()
                     
         return self.state
 
 class Close(ActionBehavior):
     """
-    Close an object (e.g. open microwave door or fridge door)
+    Close an object (e.g. close microwave door or fridge door)
     """
+    name = "Close"
+    description = "Close an object (e.g. close microwave door or fridge door)"
+
     class CloseStates(IntEnum):
         """Define the internal states"""
         INIT = 1
@@ -676,6 +722,9 @@ class ToggleOn(ActionBehavior):
     """
     Toggle on an object (e.g. microwave or coffee machine)
     """
+    name = "Toggle_On"
+    description = "Turn on an object (e.g. microwave or coffee machine)"
+
     class ToggleOnStates(IntEnum):
         """Define the internal states"""
         INIT = 1
@@ -728,6 +777,9 @@ class ToggleOff(ActionBehavior):
     """
     Toggle off an object (e.g. microwave or coffee machine)
     """
+    name = "Toggle_Off"
+    description = "Turn off an object (e.g. microwave or coffee machine)"
+
     class ToggleOffStates(IntEnum):
         """Define the internal states"""
         INIT = 1
@@ -783,4 +835,4 @@ def get_condition_nodes():
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place, Navigate, Open, ToggleOn, ToggleOff]
+    return [Grasp, Place, Navigate, Open, Close, ToggleOn, ToggleOff]

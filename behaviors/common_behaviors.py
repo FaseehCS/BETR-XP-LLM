@@ -42,6 +42,8 @@ import string
 import numpy as np
 from vlm.prompt import VLMPrompter
 import py_trees as pt
+import os
+import time
 
 class ParameterTypes(IntEnum):
     """Define the parameter types."""
@@ -382,9 +384,9 @@ class ActionBehavior(Behavior):
         Update dynamic inputs for the VLM Prompter.
         """
         updated_inputs = {
-            "images": self.world_interface.get_updated_image(),
-            "scene_graph": self.world_interface.get_updated_scene_graph(),
-            "hierarchical_summary": self.world_interface.get_updated_hierarchical_summary(),
+            "images": self.world_interface.get_updated_image(self.vlm_prompter.task_dir),
+            "scene_graph": "scene_graph.txt",
+            "hierarchical_summary": "hierarchical_summary.txt",
         }
         self.vlm_prompter.update_inputs(**updated_inputs)
 
@@ -435,9 +437,9 @@ class ActionBehavior(Behavior):
                 "params": self.vlm_prompter.postconditionverifier["template-identification"]["params"],
             }
             identification_result = self.vlm_prompter.postcondition_identification(identification_params, updated_inputs={
-                "images": self.world_interface.get_updated_images(),
-                "scene_graph": self.world_interface.get_updated_scene_graph(),
-                "hierarchical_summary": self.world_interface.get_updated_hierarchical_summary(),
+                "images": self.world_interface.get_updated_image(self.vlm_prompter.task_dir),
+                "scene_graph": "scene_graph.txt",
+                "hierarchical_summary": "hierarchical_summary.txt",
             })
 
             # Correction
@@ -446,9 +448,9 @@ class ActionBehavior(Behavior):
                 "params": self.vlm_prompter.postconditionverifier["template-correction"]["params"],
             }
             correction_result = self.vlm_prompter.postcondition_correction(correction_params, updated_inputs={
-                "images": self.world_interface.get_updated_images(),
-                "scene_graph": self.world_interface.get_updated_scene_graph(),
-                "hierarchical_summary": self.world_interface.get_updated_hierarchical_summary(),
+                "images": self.world_interface.get_updated_image(self.vlm_prompter.task_dir),
+                "scene_graph": "scene_graph.txt",
+                "hierarchical_summary": "hierarchical_summary.txt",
             })
 
             if self.verbose:
@@ -467,6 +469,35 @@ class ActionBehavior(Behavior):
                 self.failure()
         if self.verbose and self.state == pt.common.Status.RUNNING:
             print(self.name, ':', self.state)
+            
+    def hierarchical_summary(self):
+        """
+        Generate hierarchical summary for the current behavior.
+        """
+        path =  os.path.join(self.vlm_prompter.task_dir, "hierarchical_summary.txt")
+        preconditions = "Preconditions:"
+        for precondition in self.preconditions:
+            # status = preconditions.status.name
+            preconditions += f" {precondition.name},".replace("~", "not ")
+        Timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        summary = f"Timestamp:{Timestamp} | Executing skill: {self.name} | {preconditions}\n"
+        with open(path, "a") as file:
+            file.write(summary)
+            
+    def end_hierarchical_summary(self):
+        """
+        End hierarchical summary for the current behavior.
+        """
+        path =  os.path.join(self.vlm_prompter.task_dir, "hierarchical_summary.txt")
+        state = "Success" if self.state == pt.common.Status.SUCCESS else "Failure"
+        postconditions = "Postconditions:"
+        for postcondition in self.postconditions:
+            # status = preconditions.status.name
+            postconditions += f" {postcondition.name},".replace("~", "not ").replace("?", "")
+        Timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        summary = f"Timestamp:{Timestamp} | Completed skill: {self.name} ({state}) | {postconditions}\n"
+        with open(path, "a") as file:
+            file.write(summary)
 
     def success(self) -> None:
         """Set state success."""
