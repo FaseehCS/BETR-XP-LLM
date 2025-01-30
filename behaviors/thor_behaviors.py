@@ -25,7 +25,7 @@ class AtPos(Behavior):
     """
     Check if object is at position
     """
-    name = "At_Pos"
+    skill_name = "At_Pos"
     description = "Check if object is at position"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -94,7 +94,7 @@ class Grasped(Behavior):
     """
     Check if object is grasped
     """
-    name = "grasped"
+    skill_name = "grasped"
     description = "Check if object is in robot's gripper"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -125,7 +125,7 @@ class LocationKnown(Behavior):
     """
     Check if object location is known
     """
-    name = "Location_Known"
+    skill_name = "Location_Known"
     description = "Check if object location is known"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -151,7 +151,7 @@ class Upright(Behavior):
     """
     Check if object is standing upright
     """
-    name = "Upright"
+    skill_name = "Upright"
     description = "Check if object is standing upright"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -177,7 +177,7 @@ class NearRobot(Behavior):
     """
     Check if object is within reach
     """
-    name = "Near_Robot"
+    skill_name = "Near_Robot"
     description = "Check if object is within reacht"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -203,7 +203,7 @@ class Opened(Behavior):
     """
     Check if object is open
     """
-    name = "Opened"
+    skill_name = "Opened"
     description = "Check if object is opened"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -229,7 +229,7 @@ class Toggled(Behavior):
     """
     Check if object is open
     """
-    name = "Toggled"
+    skill_name = "Toggled"
     description = "Check if object is turned on"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -255,7 +255,7 @@ class Unlocked(Behavior):
     """
     Check if object is unlocked
     """
-    name = "Unlocked"
+    skill_name = "Unlocked"
     description = "Check if object is unlocked"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -281,7 +281,7 @@ class Grasp(ActionBehavior):
     """
     Grasp an object
     """
-    name = "Pick"
+    skill_name = "Pick"
     description = "Picks up a specified object."
 
     class GraspStates(IntEnum):
@@ -418,7 +418,7 @@ class Place(ActionBehavior):
     """
     Place object on position
     """
-    name = "Place"
+    skill_name = "Place"
     description = "Place an object with specified relation (at, on, inside) (e.g. Place Cup Inside microwave, place apple On countertop)."
 
     class PlaceStates(IntEnum):
@@ -549,7 +549,7 @@ class Navigate(ActionBehavior):
     """
     Navigate to a specific location in the environment.
     """
-    name = "navigate"
+    skill_name = "navigate"
     description = "Navigate to a specific location in the environment."
 
     class NavigateStates(IntEnum):
@@ -608,7 +608,7 @@ class Open(ActionBehavior):
     """
     Open an object (e.g. open microwave door or fridge door)
     """
-    name = "Open"
+    skill_name = "Open"
     description = "Open an object (e.g. open microwave door or fridge door)"
 
     class OpenStates(IntEnum):
@@ -666,7 +666,7 @@ class Close(ActionBehavior):
     """
     Close an object (e.g. close microwave door or fridge door)
     """
-    name = "Close"
+    skill_name = "Close"
     description = "Close an object (e.g. close microwave door or fridge door)"
 
     class CloseStates(IntEnum):
@@ -722,7 +722,7 @@ class ToggleOn(ActionBehavior):
     """
     Toggle on an object (e.g. microwave or coffee machine)
     """
-    name = "Toggle_On"
+    skill_name = "Toggle_On"
     description = "Turn on an object (e.g. microwave or coffee machine)"
 
     class ToggleOnStates(IntEnum):
@@ -777,7 +777,7 @@ class ToggleOff(ActionBehavior):
     """
     Toggle off an object (e.g. microwave or coffee machine)
     """
-    name = "Toggle_Off"
+    skill_name = "Toggle_Off"
     description = "Turn off an object (e.g. microwave or coffee machine)"
 
     class ToggleOffStates(IntEnum):

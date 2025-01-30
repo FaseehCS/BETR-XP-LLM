@@ -195,7 +195,9 @@ class VLMPrompter:
 
     def _populate_prompt(self, prompt, include_failure_info=False):
         """Populates placeholders in the prompt with actual data."""
-        prompt = prompt.replace("[SKILL_DESCRIPTIONS]", f"{self.skill_descriptions}" or "")
+        prompt = prompt.replace("[SKILL_NAME]", f"{self.skill_name}" or "")
+        prompt = prompt.replace("[SKILLPRECONDITIONS]", f"{self.skill_preconditions}" or "")
+        prompt = prompt.replace("[SKILL_DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
         prompt = prompt.replace("[PLAN_EXECUTION]", self.plan_execution or "")
         prompt = prompt.replace("[SCENE_GRAPH]", self.scene_graph or "")
         prompt = prompt.replace("[HIERARCHICAL_SUMMARY]", self.hierarchical_summary or "")

@@ -484,6 +484,9 @@ class ActionBehavior(Behavior):
         with open(path, "a") as file:
             file.write(summary)
             
+        self.vlm_prompter.skill_name = self.skill_name
+        self.vlm_prompter.skill_preconditions = preconditions.replace("Preconditions: ", "")
+            
     def end_hierarchical_summary(self):
         """
         End hierarchical summary for the current behavior.
@@ -498,6 +501,9 @@ class ActionBehavior(Behavior):
         summary = f"Timestamp:{Timestamp} | Completed skill: {self.name} ({state}) | {postconditions}\n"
         with open(path, "a") as file:
             file.write(summary)
+
+        self.vlm_prompter.skill_name = self.skill_name
+        self.vlm_prompter.skill_postconditions = postconditions.replace("Postconditions: ", "")
 
     def success(self) -> None:
         """Set state success."""
