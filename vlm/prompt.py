@@ -4,9 +4,14 @@ import openai
 import json
 import datetime
 import numpy as np
+import base64
+
+def encode_image(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
 
 class VLMPrompter:
-    def __init__(self, gpt_version="gpt-4-vision", api_key=None, root_folder_path=None, task_name=None, skill_descriptions=None, plan_execution=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt", images=None, failure_skill=None, failure_reason=None, resources=None) -> None:
+    def __init__(self, gpt_version="gpt-4o-mini", api_key=None, root_folder_path=None, task_name=None, skill_descriptions=None, plan_execution=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt", images=None, failure_skill=None, failure_reason=None, resources=None) -> None:
         self.gpt_version = gpt_version
         if not api_key:
             raise ValueError("OpenAI API key is not provided.")
@@ -119,14 +124,16 @@ class VLMPrompter:
         if self.images:
             for image_path in self.images:
                 try:
-                    with open(image_path, 'rb') as img_file:
-                        image_bytes = img_file.read()
-                        image_files.append(("image", (os.path.basename(image_path), image_bytes)))
+                    # with open(image_path, 'rb') as img_file:
+                    #     image_bytes = img_file.read()
+                    #     image_files.append(("image", (os.path.basename(image_path), image_bytes)))
+                    base64_image = encode_image(image_path)
+                    image_files.append(base64_image)
                 except Exception as e:
                     print(f"Error: Could not load image '{image_path}'. Exception: {e}")
                     continue
 
-        if image_files and 'gpt-4-vision' not in self.gpt_version:
+        if image_files and 'gpt-4o-mini' not in self.gpt_version:
             raise ValueError("The provided model does not support image input.")
 
         # Fail-safe mechanism for retries
@@ -138,10 +145,17 @@ class VLMPrompter:
                 if image_files:
                     response = openai.ChatCompletion.create(
                         model=self.gpt_version,
-                        messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": prompt}],
-                        files=image_files,
+                        messages=[
+                            {"role": "system", "content": prompt['system']},
+                            {"role": "user", "content": [
+                                {"type": "text", "text": prompt['user']},
+                                # {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}", "detail": "high",},}
+                                ]},
+                            ],
+                        # files=image_files,
                         **sampling_params
                     )
+
                 else:
                     response = openai.ChatCompletion.create(
                         model=self.gpt_version,
@@ -193,22 +207,28 @@ class VLMPrompter:
         """Generate a unique key based on the current date and time."""
         return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    def _populate_prompt(self, prompt, include_failure_info=False):
+    def _populate_prompt(self, params, include_failure_info=False):
         """Populates placeholders in the prompt with actual data."""
-        prompt = prompt.replace("[SKILL_NAME]", f"{self.skill_name}" or "")
-        prompt = prompt.replace("[SKILLPRECONDITIONS]", f"{self.skill_preconditions}" or "")
-        prompt = prompt.replace("[SKILL_DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
-        prompt = prompt.replace("[PLAN_EXECUTION]", self.plan_execution or "")
-        prompt = prompt.replace("[SCENE_GRAPH]", self.scene_graph or "")
-        prompt = prompt.replace("[HIERARCHICAL_SUMMARY]", self.hierarchical_summary or "")
-        prompt = prompt.replace("[IMAGES]", ", ".join(self.images) if self.images else "")
+        prompt = {}
+        user_prompt = params["template-user"]
+        
+        user_prompt = user_prompt.replace("[SKILL_NAME]", f"{self.skill_name}" or "")
+        user_prompt = user_prompt.replace("[SKILLPRECONDITIONS]", f"{self.skill_preconditions}" or "")
+        user_prompt = user_prompt.replace("[SKILL_DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
+        user_prompt = user_prompt.replace("[PLAN_EXECUTION]", self.plan_execution or "")
+        user_prompt = user_prompt.replace("[SCENE_GRAPH]", self.scene_graph or "")
+        user_prompt = user_prompt.replace("[HIERARCHICAL_SUMMARY]", self.hierarchical_summary or "")
+        user_prompt = user_prompt.replace("[IMAGES]", ", ".join(self.images) if self.images else "")
 
         if include_failure_info:
-            prompt = prompt.replace("[FAILURE_SKILL]", self.failure_skill or "")
-            prompt = prompt.replace("[FAILURE_REASON]", self.failure_reason or "")
+            user_prompt = user_prompt.replace("[FAILURE_SKILL]", self.failure_skill or "")
+            user_prompt = user_prompt.replace("[FAILURE_REASON]", self.failure_reason or "")
         else:
-            prompt = prompt.replace("[FAILURE_SKILL]", "")
-            prompt = prompt.replace("[FAILURE_REASON]", "")
+            user_prompt = user_prompt.replace("[FAILURE_SKILL]", "")
+            user_prompt = user_prompt.replace("[FAILURE_REASON]", "")
+
+        prompt["user"] = user_prompt
+        prompt["system"] = params["template-system"]
 
         return prompt
 
@@ -217,8 +237,8 @@ class VLMPrompter:
         """Handles the detection functionality for preconditions."""
 
         params = self.prompts_json_file["preconditionverifier"]["template-detection"]
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=False)
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "preconditions_detection_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -227,8 +247,8 @@ class VLMPrompter:
         """Handles the identification functionality for preconditions."""
         
         params = self.prompts_json_file["preconditionverifier"]["template-identification"]
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=False)
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "preconditions_identification_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_identification_response.txt")
         response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -259,8 +279,7 @@ class VLMPrompter:
         self.failure_skill = failure_skill
         self.failure_reason = failure_reason
 
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=True)
+        prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "preconditions_correction_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -270,8 +289,8 @@ class VLMPrompter:
         """Handles the detection functionality for postconditions."""
         
         params = self.prompts_json_file["postconditionverifier"]["template-detection"]
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=False)
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "postconditions_detection_query.txt")
         response_file = os.path.join(self.task_dir, "postconditions_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -280,8 +299,8 @@ class VLMPrompter:
         """Handles the identification functionality for postconditions."""
         
         params = self.prompts_json_file["postconditionverifier"]["template-identification"]
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=False)
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "postconditions_identification_query.txt")
         response_file = os.path.join(self.task_dir, "postconditions_identification_response.txt")
         response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -312,8 +331,8 @@ class VLMPrompter:
         self.failure_skill = failure_skill
         self.failure_reason = failure_reason
 
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=True)
+
+        prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "postconditions_correction_query.txt")
         response_file = os.path.join(self.task_dir, "postconditions_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -323,8 +342,8 @@ class VLMPrompter:
         """Handles the detection functionality for proactive checking."""
         
         params = self.prompts_json_file["proactivechecker"]["template-detection"]
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=False)
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "proactive_detection_query.txt")
         response_file = os.path.join(self.task_dir, "proactive_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -333,8 +352,8 @@ class VLMPrompter:
         """Handles the identification functionality for proactive checking."""
         
         params = self.prompts_json_file["proactivechecker"]["template-identification"]
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=False)
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
         query_file = os.path.join(self.task_dir, "proactive_identification_query.txt")
         response_file = os.path.join(self.task_dir, "proactive_identification_response.txt")
         response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
@@ -365,8 +384,8 @@ class VLMPrompter:
         self.failure_skill = failure_skill
         self.failure_reason = failure_reason
 
-        prompt = params["template-user"]
-        prompt = self._populate_prompt(prompt, include_failure_info=True)
+
+        prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "proactive_correction_query.txt")
         response_file = os.path.join(self.task_dir, "proactive_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
