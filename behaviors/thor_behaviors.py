@@ -305,13 +305,15 @@ class Grasp(ActionBehavior):
         if world_interface.is_graspable(parameters["target_object"]) or parameters["target_object"] == '"any object"':
             postconditions = [Grasped('', {"target_object": parameters["target_object"]}, world_interface)]
             for edge in world_interface.scene_graph.edges.keys():
-                if self.target_object in edge:
+                if self.target_object in edge and not "robot_gripper" in edge:
                     relation = world_interface.scene_graph.edges[edge].edge_type
                     relative_object = edge[1] if edge[0] == self.target_object else edge[0]
                     postconditions += [AtPos('', {"not": True,
                                                 "target_object": parameters["target_object"],
                                                 "relation": relation,
                                                 "relative_object": relative_object}, world_interface)]
+        # else:
+        #     postconditions = [Grasped('', {"target_object": parameters["target_object"]}, world_interface)]
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
 
     @staticmethod
@@ -384,25 +386,12 @@ class Grasp(ActionBehavior):
         grasped_object = self.world_interface.get_grasped_object()
         return grasped_object not in (self.target_object , None)
 
-    def update(self):
-        self.check_for_success()
-        ActionBehavior.update(self)
-        
-        if self.state is pt.common.Status.RUNNING:
-            print('executing grasp action')
-            self.hierarchical_summary()
-            self.calc_grasp_position()
-            self.calc_approach_position()
-            # self.world_interface.move_armbase()
-            # self.world_interface.move_linear(self.world_interface.pos_to_dict(self.approach_position))
-            self.world_interface.pick_up(self.target_object)
-            self.world_interface.get_feedback()
-            self.check_for_success()
-            if self.check_for_failure():
-                self.failure()
-            self.end_hierarchical_summary()
-
-        return self.state
+    def execute(self):
+        self.calc_grasp_position()
+        self.calc_approach_position()
+        # self.world_interface.move_armbase()
+        # self.world_interface.move_linear(self.world_interface.pos_to_dict(self.approach_position))
+        self.world_interface.pick_up(self.target_object)
 
     def calc_grasp_position(self):
         """Gets grasp position of object"""
@@ -503,21 +492,14 @@ class Place(ActionBehavior):
         """Fail if object is not grasped."""
         return self.world_interface.get_grasped_object() != self.target_object
 
-    def update(self):
-        self.check_for_success()
-        ActionBehavior.update(self)
-        
-        if self.state is pt.common.Status.RUNNING:
-            self.hierarchical_summary()
-            print('executing placing action')
-            self.precondition_check()
+    def execute(self):
+            # self.precondition_check()
+            # if self.parameters["relation"] == "in":
+            #     self.world_interface.put_in(self.target_object, self.parameters["relative_object"])
+            # else:
             self.world_interface.place_obj(self.target_object, self.parameters["relative_object"])
-            self.check_for_success()
-            if self.check_for_failure():
-                self.failure()
-            self.end_hierarchical_summary()
-
-        return self.state
+            if (self.target_object,"robot_gripper") in self.world_interface.scene_graph.edges.keys():
+                self.world_interface.scene_graph.edges.pop((self.target_object,"robot_gripper"))
 
     def calc_release_position(self):
         """Gets release position of object"""
@@ -587,22 +569,10 @@ class Navigate(ActionBehavior):
         """Check if object is at target position."""
         if self.world_interface.is_near_robot(self.target_object):
             self.success()
-    
-    def update(self):
-        self.check_for_success()
-        ActionBehavior.update(self)
-        
-        if self.state is pt.common.Status.RUNNING:
-            self.hierarchical_summary()
-            if not self.world_interface.object_position_known[self.target_object]:
-                return self.failure()
 
-            # self.world_interface.move_armbase()
-            self.world_interface.navigate_to_obj(self.target_object)
-            self.check_for_success()
-            self.end_hierarchical_summary()
-
-        return self.state
+    def execute(self):
+        # self.world_interface.move_armbase()
+        self.world_interface.navigate_to_obj(self.target_object)
     
 class Open(ActionBehavior):
     """
@@ -650,17 +620,8 @@ class Open(ActionBehavior):
         if self.world_interface.object_opened[self.target_object]:
             self.success()
             
-    def update(self):
-        self.check_for_success()
-        ActionBehavior.update(self)
-        
-        if self.state is pt.common.Status.RUNNING:
-            self.hierarchical_summary()
-            self.world_interface.open_obj(self.target_object)
-            self.check_for_success()
-            self.end_hierarchical_summary()
-                    
-        return self.state
+    def execute(self):
+        self.world_interface.open_obj(self.target_object)
 
 class Close(ActionBehavior):
     """
@@ -708,15 +669,8 @@ class Close(ActionBehavior):
         if not self.world_interface.object_opened[self.target_object]:
             self.success()
             
-    def update(self):
-        self.check_for_success()
-        ActionBehavior.update(self)
-        
-        if self.state is pt.common.Status.RUNNING:
-            self.world_interface.close_obj(self.target_object)
-            self.check_for_success()
-                    
-        return self.state
+    def execute(self):
+        self.world_interface.close_obj(self.target_object)
 
 class ToggleOn(ActionBehavior):
     """
@@ -763,15 +717,8 @@ class ToggleOn(ActionBehavior):
         if self.world_interface.is_toggled[self.target_object]:
             self.success()
             
-    def update(self):
-        self.check_for_success()
-        ActionBehavior.update(self)
-        
-        if self.state is pt.common.Status.RUNNING:
-            self.world_interface.toggle_on(self.target_object)
-            self.check_for_success()
-                    
-        return self.state
+    def execute(self):
+        self.world_interface.toggle_on(self.target_object)
     
 class ToggleOff(ActionBehavior):
     """
@@ -818,15 +765,8 @@ class ToggleOff(ActionBehavior):
         if not self.world_interface.is_toggled[self.target_object]:
             self.success()
             
-    def update(self):
-        self.check_for_success()
-        ActionBehavior.update(self)
-        
-        if self.state is pt.common.Status.RUNNING:
-            self.world_interface.toggle_off(self.target_object)
-            self.check_for_success()
-                    
-        return self.state
+    def execute(self):
+        self.world_interface.toggle_off(self.target_object)
     
 def get_condition_nodes():
     """ Returns a list of all action nodes available for planning """

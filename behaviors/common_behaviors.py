@@ -361,6 +361,8 @@ class ActionBehavior(Behavior):
     def initialise(self) -> None:
         self.counter = 0
         self.state = pt.common.Status.RUNNING
+        self.precondition_check()
+        self.hierarchical_summary()
 
     @staticmethod
     def parse_parameters(node_descriptor):
@@ -462,14 +464,22 @@ class ActionBehavior(Behavior):
 
         return True  # Postconditions satisfied
     
-    def update(self) -> None:
+    def update(self):
+        self.check_for_success()
+
         self.counter += 1
         if self.state == pt.common.Status.RUNNING:
             if self.counter > self.max_ticks:
                 self.failure()
-        if self.verbose and self.state == pt.common.Status.RUNNING:
-            print(self.name, ':', self.state)
-            
+            else:
+                self.execute()
+                self.world_interface.get_feedback()
+                self.check_for_success()
+            self.end_hierarchical_summary()
+        else:
+            ActionBehavior.update(self)
+        return self.state
+
     def hierarchical_summary(self):
         """
         Generate hierarchical summary for the current behavior.
@@ -491,6 +501,7 @@ class ActionBehavior(Behavior):
         """
         End hierarchical summary for the current behavior.
         """
+        self.world_interface.get_feedback()
         path =  os.path.join(self.vlm_prompter.task_dir, "hierarchical_summary.txt")
         state = "Success" if self.state == pt.common.Status.SUCCESS else "Failure"
         postconditions = "Postconditions:"
