@@ -217,6 +217,13 @@ class WorldInterface(BaseWorldInterface):
         for edge in self.scene_graph.edges.keys():
             edge_text = f"{self.scene_graph.edges[edge]}"
             self.text_graph += edge_text + "\n"
+            
+        object_text = "Objects with known positions:"
+        for object in self.object_position_known.keys():
+            if self.object_position_known[object]:
+                object_text += f" {object},"
+                
+        self.text_graph += object_text
 
         if file_path is None:
             file_path=self.root_folder_path
