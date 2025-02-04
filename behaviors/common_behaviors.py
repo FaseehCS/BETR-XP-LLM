@@ -423,14 +423,10 @@ class ActionBehavior(Behavior):
         Check postconditions using detection, identification, and correction.
         """
         # # Update dynamic inputs
-        # self.update_inputs()
+        self.update_inputs()
 
         # Detection
-        detection_params = {
-            "template-user": self.vlm_prompter.skill_descriptions,
-            "params": self.vlm_prompter.postconditionverifier["template-detection"]["params"],
-        }
-        detection_result = self.vlm_prompter.postcondition_detection(detection_params)
+        detection_result = self.vlm_prompter.postcondition_detection()
 
         if "No" in detection_result:
             # Identification
@@ -476,6 +472,7 @@ class ActionBehavior(Behavior):
                 self.world_interface.get_feedback()
                 self.check_for_success()
             self.end_hierarchical_summary()
+            self.postcondition_check()
         else:
             ActionBehavior.update(self)
         return self.state
