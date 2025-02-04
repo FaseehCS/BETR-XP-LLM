@@ -33,6 +33,10 @@ class VLMPrompter:
         if not self.prompts_json_file:
             raise ValueError("Invalid or missing prompts JSON file.")
         
+        # variables
+        self.skill_preconditions = False
+        self.skill_postconditions = False
+        
     def get_files(self):
         # Initialize file paths and attributes
         file = os.path.join(self.resources, "skill_descriptions.json")

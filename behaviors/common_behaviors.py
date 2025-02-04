@@ -361,8 +361,8 @@ class ActionBehavior(Behavior):
     def initialise(self) -> None:
         self.counter = 0
         self.state = pt.common.Status.RUNNING
-        self.precondition_check()
         self.hierarchical_summary()
+        self.precondition_check()
 
     @staticmethod
     def parse_parameters(node_descriptor):
@@ -493,6 +493,11 @@ class ActionBehavior(Behavior):
             
         self.vlm_prompter.skill_name = self.skill_name
         self.vlm_prompter.skill_preconditions = preconditions.replace("Preconditions: ", "")
+
+        postconditions = ""
+        for postcondition in self.postconditions:
+            postconditions += f" {postcondition.name},".replace("~", "not ").replace("?", "")
+        self.vlm_prompter.skill_postconditions = postconditions
             
     def end_hierarchical_summary(self):
         """
