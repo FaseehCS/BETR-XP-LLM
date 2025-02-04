@@ -70,8 +70,12 @@ class VLMPrompter:
     def write_file(file_path, content):
         """Writes content to a file."""
         try:
-            with open(file_path, 'w') as file:
-                file.write(content.strip())
+            if type(content) == dict:
+                with open(file_path.replace('txt', json), 'w') as file:
+                    json.dump(content, file, indent=4)
+            else:
+                with open(file_path, 'w') as file:
+                    file.write(content.strip())
         except Exception as e:
             print(f"Error writing to file {file_path}: {e}")
 
@@ -83,7 +87,7 @@ class VLMPrompter:
         if images:
             self.images = [img for img in images if os.path.exists(img)]
 
-        files = ["plan_execution.txt", scene_graph, hierarchical_summary, "failure_skill.txt", "failure_reason.txt"]
+        files = ["plan.txt", scene_graph, hierarchical_summary, "failure_skill.txt", "failure_reason.txt"]
         self.plan_execution, self.scene_graph, self.hierarchical_summary, \
             self.failure_skill, self.failure_reason = [self.read_file(os.path.join(self.task_dir, f)) if os.path.exists(os.path.join(self.task_dir, f)) else None for f in files]
 
@@ -117,7 +121,7 @@ class VLMPrompter:
     def query(self, prompt: str, sampling_params: dict, save: bool, save_dir: str, query_file: str, response_file: str) -> str:
         """Send the prompt to the GPT model with optional image files and fail-safe retries."""
         # Save query to file
-        self.write_file(query_file, prompt)
+        self.write_file(query_file, prompt['user'])
 
         # Process images if provided
         image_files = []
@@ -149,7 +153,7 @@ class VLMPrompter:
                             {"role": "system", "content": prompt['system']},
                             {"role": "user", "content": [
                                 {"type": "text", "text": prompt['user']},
-                                # {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}", "detail": "high",},}
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}", "detail": "high",},}
                                 ]},
                             ],
                         # files=image_files,
@@ -214,6 +218,7 @@ class VLMPrompter:
         
         user_prompt = user_prompt.replace("[SKILL_NAME]", f"{self.skill_name}" or "")
         user_prompt = user_prompt.replace("[SKILLPRECONDITIONS]", f"{self.skill_preconditions}" or "")
+        user_prompt = user_prompt.replace("[SKILLPOSTCONDITIONS]", f"{self.skill_postconditions}" or "")
         user_prompt = user_prompt.replace("[SKILL_DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
         user_prompt = user_prompt.replace("[PLAN_EXECUTION]", self.plan_execution or "")
         user_prompt = user_prompt.replace("[SCENE_GRAPH]", self.scene_graph or "")
