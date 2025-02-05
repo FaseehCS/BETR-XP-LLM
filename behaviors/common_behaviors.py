@@ -518,6 +518,12 @@ class ActionBehavior(Behavior):
         self.vlm_prompter.skill_name = self.skill_name
         self.vlm_prompter.skill_postconditions = postconditions.replace("Postconditions: ", "")
 
+    def check_for_success(self):
+        """
+        Check if the behavior was successful.
+        """
+        pass
+
     def success(self) -> None:
         """Set state success."""
         self.state = pt.common.Status.SUCCESS

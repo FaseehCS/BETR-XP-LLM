@@ -18,6 +18,9 @@ class AtPos(Behavior):
     """
     Check if object is at position
     """
+    skill_name = "At_Pos"
+    description = "Check if object is at position"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = AtPos.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -84,6 +87,9 @@ class Grasped(Behavior):
     """
     Check if object is grasped
     """
+    skill_name = "grasped"
+    description = "Check if object is in robot's gripper"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Grasped.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -112,6 +118,9 @@ class LocationKnown(Behavior):
     """
     Check if object location is known
     """
+    skill_name = "Location_Known"
+    description = "Check if object location is known"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = LocationKnown.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -135,6 +144,9 @@ class Upright(Behavior):
     """
     Check if object is standing upright
     """
+    skill_name = "Upright"
+    description = "Check if object is standing upright"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Upright.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -158,6 +170,9 @@ class NearRobot(Behavior):
     """
     Check if object is within reach
     """
+    skill_name = "Near_Robot"
+    description = "Check if object is within reacht"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = NearRobot.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -181,6 +196,9 @@ class Opened(Behavior):
     """
     Check if object is open
     """
+    skill_name = "Opened"
+    description = "Check if object is opened"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Opened.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -204,6 +222,9 @@ class Unlocked(Behavior):
     """
     Check if object is unlocked
     """
+    skill_name = "Unlocked"
+    description = "Check if object is unlocked"
+
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Unlocked.to_string(parameters)
         super().__init__(name, parameters, world_interface)
@@ -227,6 +248,9 @@ class Grasp(ActionBehavior):
     """
     Grasp an object
     """
+    skill_name = "Pick"
+    description = "Picks up a specified object."
+
     class GraspStates(IntEnum):
         """Define the internal states during execution."""
         INIT = 1
@@ -324,53 +348,47 @@ class Grasp(ActionBehavior):
         grasped_object = self.world_interface.get_grasped_object()
         return grasped_object not in (self.target_object , None)
     
-    def update(self):
+    def execute(self):
         """Executes behavior """
-        self.check_for_success()
-        ActionBehavior.update(self)
-
-        if self.state is pt.common.Status.RUNNING:
-            if self.check_for_failure():
+        if self.check_for_failure():
+            return self.failure()
+        if self.internal_state == self.GraspStates.INIT:
+            self.world_interface.stop()
+            self.internal_state = self.GraspStates.WAITING_FOR_STOP
+            self.calc_grasp_position()
+            if self.grasp_position is None:
                 return self.failure()
-            if self.internal_state == self.GraspStates.INIT:
-                self.world_interface.stop()
-                self.internal_state = self.GraspStates.WAITING_FOR_STOP
-                self.calc_grasp_position()
-                if self.grasp_position is None:
+            self.calc_approach_position()
+
+            open_gripper_program = self.world_interface.get_open_gripper_program(no_wait=True)
+            approach_program = self.world_interface.move_cfree(self.approach_position, self.orientation)
+            if approach_program is None:
+                return self.failure()
+            positioning_program = self.world_interface.move_linear(self.grasp_position, self.orientation, self.target_object)
+            if positioning_program is None:
+                return self.failure()
+            gripper_program = self.world_interface.get_close_gripper_program()
+
+            lift_program = self.world_interface.move_linear(self.approach_position, self.orientation, self.target_object)
+
+            self.full_grasping_program = self.world_interface.finalize_program(open_gripper_program +
+                                                                            approach_program +
+                                                                            positioning_program +
+                                                                            gripper_program +
+                                                                            lift_program)
+        if self.internal_state == self.GraspStates.WAITING_FOR_STOP:
+            if self.world_interface.has_stopped():
+                if not self.world_interface.run_program(self.full_grasping_program):
                     return self.failure()
-                self.calc_approach_position()
-
-                open_gripper_program = self.world_interface.get_open_gripper_program(no_wait=True)
-                approach_program = self.world_interface.move_cfree(self.approach_position, self.orientation)
-                if approach_program is None:
-                    return self.failure()
-                positioning_program = self.world_interface.move_linear(self.grasp_position, self.orientation, self.target_object)
-                if positioning_program is None:
-                    return self.failure()
-                gripper_program = self.world_interface.get_close_gripper_program()
-
-                lift_program = self.world_interface.move_linear(self.approach_position, self.orientation, self.target_object)
-
-                self.full_grasping_program = self.world_interface.finalize_program(open_gripper_program +
-                                                                              approach_program +
-                                                                              positioning_program +
-                                                                              gripper_program +
-                                                                              lift_program)
-            if self.internal_state == self.GraspStates.WAITING_FOR_STOP:
-                if self.world_interface.has_stopped():
-                    if not self.world_interface.run_program(self.full_grasping_program):
-                        return self.failure()
-                    self.world_interface.set_manipulation_target(self.target_object)
-                    self.internal_state = self.GraspStates.WAITING_FOR_START
-            if self.internal_state == self.GraspStates.WAITING_FOR_START:
-                if self.world_interface.is_running():
-                    self.internal_state = self.GraspStates.RUNNING
-            if self.internal_state == self.GraspStates.RUNNING:
-                if self.world_interface.has_stopped():
-                    self.world_interface.set_grasped_object(self.target_object)
-                    self.success()
-
-        return self.state
+                self.world_interface.set_manipulation_target(self.target_object)
+                self.internal_state = self.GraspStates.WAITING_FOR_START
+        if self.internal_state == self.GraspStates.WAITING_FOR_START:
+            if self.world_interface.is_running():
+                self.internal_state = self.GraspStates.RUNNING
+        if self.internal_state == self.GraspStates.RUNNING:
+            if self.world_interface.has_stopped():
+                self.world_interface.set_grasped_object(self.target_object)
+                self.success()
 
     def calc_grasp_position(self):
         """Gets grasp position of object"""
@@ -386,6 +404,9 @@ class Place(ActionBehavior):
     """
     Place object on position
     """
+    skill_name = "Place"
+    description = "Place an object with specified relation (at, on, inside) (e.g. Place Cup Inside microwave, place apple On countertop)."
+
     class PlaceStates(IntEnum):
         """Define the internal states during execution."""
         INIT = 1
@@ -467,57 +488,51 @@ class Place(ActionBehavior):
         """Fail if object is not grasped."""
         return self.world_interface.get_grasped_object() != self.target_object
 
-    def update(self):
+    def execute(self):
         """Executes behavior """
-        self.check_for_success()
-        ActionBehavior.update(self)
-
-        if self.state is pt.common.Status.RUNNING:
-            if self.check_for_failure():
+        if self.check_for_failure():
+            return self.failure()
+        if self.internal_state == self.PlaceStates.INIT:
+            self.world_interface.stop()
+            self.internal_state = self.PlaceStates.WAITING_FOR_STOP
+            self.calc_release_position()
+            if self.release_position is None:
                 return self.failure()
-            if self.internal_state == self.PlaceStates.INIT:
-                self.world_interface.stop()
-                self.internal_state = self.PlaceStates.WAITING_FOR_STOP
-                self.calc_release_position()
-                if self.release_position is None:
+            self.calc_place_approach_position()
+
+            approach_program = self.world_interface.move_cfree(self.approach_position, self.orientation)
+            if approach_program is None:
+                return self.failure()
+            positioning_program = self.world_interface.move_linear(self.release_position, self.orientation,
+                                                                    self.target_object)
+            if positioning_program is None:
+                return self.failure()
+            gripper_program = self.world_interface.get_open_gripper_program()
+
+            lift_program = self.world_interface.move_linear(self.approach_position, self.orientation, self.target_object)
+
+            self.full_placing_program = self.world_interface.finalize_program(approach_program +
+                                                                            positioning_program +
+                                                                            gripper_program +
+                                                                            lift_program)
+        if self.internal_state == self.PlaceStates.WAITING_FOR_STOP:
+            if self.world_interface.has_stopped():
+                if not self.world_interface.run_program(self.full_placing_program):
                     return self.failure()
-                self.calc_place_approach_position()
-
-                approach_program = self.world_interface.move_cfree(self.approach_position, self.orientation)
-                if approach_program is None:
-                    return self.failure()
-                positioning_program = self.world_interface.move_linear(self.release_position, self.orientation,
-                                                                       self.target_object)
-                if positioning_program is None:
-                    return self.failure()
-                gripper_program = self.world_interface.get_open_gripper_program()
-
-                lift_program = self.world_interface.move_linear(self.approach_position, self.orientation, self.target_object)
-
-                self.full_placing_program = self.world_interface.finalize_program(approach_program +
-                                                                              positioning_program +
-                                                                              gripper_program +
-                                                                              lift_program)
-            if self.internal_state == self.PlaceStates.WAITING_FOR_STOP:
-                if self.world_interface.has_stopped():
-                    if not self.world_interface.run_program(self.full_placing_program):
-                        return self.failure()
-                    self.internal_state = self.PlaceStates.WAITING_FOR_START
-            if self.internal_state == self.PlaceStates.WAITING_FOR_START:
-                if self.world_interface.is_running():
-                    self.internal_state = self.PlaceStates.RUNNING
-            if self.internal_state == self.PlaceStates.RUNNING:
-                if self.world_interface.has_stopped():
-                    self.world_interface.set_grasped_object(None)
-                    if self.parameters["relation"] == "in":
-                        self.world_interface.set_object_position(self.target_object,
-                                                                 self.release_position - np.array([0.0, 0.0, self.world_interface.CUP_HEIGHT + 0.02])) #TODO move numbers to world_interface
-                    else:
-                        self.world_interface.set_object_position(self.target_object,
-                                                                 self.release_position - np.array([0.0, 0.0, 0.003])) #TODO move numbers to world_interface
-                    self.success()
-
-        return self.state
+                self.internal_state = self.PlaceStates.WAITING_FOR_START
+        if self.internal_state == self.PlaceStates.WAITING_FOR_START:
+            if self.world_interface.is_running():
+                self.internal_state = self.PlaceStates.RUNNING
+        if self.internal_state == self.PlaceStates.RUNNING:
+            if self.world_interface.has_stopped():
+                self.world_interface.set_grasped_object(None)
+                if self.parameters["relation"] == "in":
+                    self.world_interface.set_object_position(self.target_object,
+                                                                self.release_position - np.array([0.0, 0.0, self.world_interface.CUP_HEIGHT + 0.02])) #TODO move numbers to world_interface
+                else:
+                    self.world_interface.set_object_position(self.target_object,
+                                                                self.release_position - np.array([0.0, 0.0, 0.003])) #TODO move numbers to world_interface
+                self.success()
 
     def calc_release_position(self):
         """Gets release position of object"""
@@ -549,6 +564,9 @@ class MoveHome(ActionBehavior):
     """
     Moves arm to home position
     """
+    skill_name = "Move_Home"
+    description = "Moves arm to home position."
+
     class MoveHomeStates(IntEnum):
         """Define the internal states during execution."""
         INIT = 1
@@ -586,37 +604,36 @@ class MoveHome(ActionBehavior):
         """
         return False
 
-    def update(self):
+    def execute(self):
         """Executes behavior """
-        super().update()
 
-        if self.state is pt.common.Status.RUNNING:
-            if self.internal_state == self.MoveHomeStates.INIT:
-                self.world_interface.stop()
-                self.internal_state = self.MoveHomeStates.WAITING_FOR_STOP
-                movement_program = self.world_interface.move_cfree(self.home_position)
-                if movement_program is None:
+        if self.internal_state == self.MoveHomeStates.INIT:
+            self.world_interface.stop()
+            self.internal_state = self.MoveHomeStates.WAITING_FOR_STOP
+            movement_program = self.world_interface.move_cfree(self.home_position)
+            if movement_program is None:
+                return self.failure()
+
+            self.full_homing_program = self.world_interface.finalize_program(movement_program)
+        if self.internal_state == self.MoveHomeStates.WAITING_FOR_STOP:
+            if self.world_interface.has_stopped():
+                if not self.world_interface.run_program(self.full_homing_program):
                     return self.failure()
-
-                self.full_homing_program = self.world_interface.finalize_program(movement_program)
-            if self.internal_state == self.MoveHomeStates.WAITING_FOR_STOP:
-                if self.world_interface.has_stopped():
-                    if not self.world_interface.run_program(self.full_homing_program):
-                        return self.failure()
-                    self.internal_state = self.MoveHomeStates.WAITING_FOR_START
-            if self.internal_state == self.MoveHomeStates.WAITING_FOR_START:
-                if self.world_interface.is_running():
-                    self.internal_state = self.MoveHomeStates.RUNNING
-            if self.internal_state == self.MoveHomeStates.RUNNING:
-                if self.world_interface.has_stopped():
-                    self.success()
-
-        return self.state
+                self.internal_state = self.MoveHomeStates.WAITING_FOR_START
+        if self.internal_state == self.MoveHomeStates.WAITING_FOR_START:
+            if self.world_interface.is_running():
+                self.internal_state = self.MoveHomeStates.RUNNING
+        if self.internal_state == self.MoveHomeStates.RUNNING:
+            if self.world_interface.has_stopped():
+                self.success()
 
 class Flip(Grasp, Place):
     """
     Flips upside upside down
     """
+    skill_name = "Flip"
+    description = "Flips upside upside down."
+
     class FlipStates(IntEnum):
         """Define the internal states during execution."""
         GRASPING = 1
@@ -672,23 +689,19 @@ class Flip(Grasp, Place):
         elif self.flip_state == self.FlipStates.PLACING:
             Place.check_for_success(self)
 
-    def update(self):
+    def execute(self):
         """Executes behavior """
-        ActionBehavior.update(self)
 
-        if self.state is pt.common.Status.RUNNING:
-            if self.flip_state == self.FlipStates.GRASPING:
-                self.state = Grasp.update(self)
-                if self.state == pt.common.Status.SUCCESS:
-                    self.flip_state = self.FlipStates.PLACING
-                    self.orientation = np.array([0.0, 0.0, -0.707107, -0.707107])
-                    Place.initialise(self)
-            if self.flip_state == self.FlipStates.PLACING:
-                self.state = Place.update(self)
+        if self.flip_state == self.FlipStates.GRASPING:
+            self.state = Grasp.update(self)
             if self.state == pt.common.Status.SUCCESS:
-                self.world_interface.set_object_upright(self.parameters["target_object"], not self.world_interface.is_object_upright(self.parameters["target_object"]))
-
-        return self.state
+                self.flip_state = self.FlipStates.PLACING
+                self.orientation = np.array([0.0, 0.0, -0.707107, -0.707107])
+                Place.initialise(self)
+        if self.flip_state == self.FlipStates.PLACING:
+            self.state = Place.update(self)
+        if self.state == pt.common.Status.SUCCESS:
+            self.world_interface.set_object_upright(self.parameters["target_object"], not self.world_interface.is_object_upright(self.parameters["target_object"]))
     
     def calc_grasp_position(self):
         """Override the grasp position of object"""
@@ -742,64 +755,60 @@ class OpenCentrifuge(ActionBehavior):
         """
         return False
 
-    def update(self):
+    def execute(self):
         """Executes behavior """
-        ActionBehavior.update(self)
 
-        if self.state is pt.common.Status.RUNNING:
-            if self.internal_state == self.OpenStates.INIT:
-                self.world_interface.stop()
-                self.internal_state = self.OpenStates.WAITING_FOR_STOP
-                open_gripper_program = self.world_interface.get_open_gripper_program(no_wait=True)
-                motionsup_off = self.world_interface.motionsupervision_off()
-                
-                approach_program = self.world_interface.move_joint(
-                    [0.5, -0.03829, 0.205], np.array([0.368725, -0.641516, 0.585942, 0.33041]), None, True)
-                point1_program = self.world_interface.move_joint(
-                    [0.5, -0.00071, 0.182], np.array([0.425542, -0.606928, 0.535537, 0.404664]), None, True)
-                softservo_on = self.world_interface.softservo_on()
-                point2_program = self.world_interface.move_joint(
-                    [0.5, 0.01071, 0.204], np.array([0.342386, -0.637357, 0.612253, 0.318895]), None, True)
-                point3_program = self.world_interface.move_joint(
-                    [0.5, 0.03471, 0.255], np.array([0.296268, -0.677995, 0.619056, 0.263283]), None, True)
-                point4_program = self.world_interface.move_joint(
-                    [0.5, 0.07471, 0.303], np.array([0.235313, -0.698104, 0.645344, 0.202015]), None, True)
-                point5_program = self.world_interface.move_joint(
-                    [0.5, 0.12371, 0.329], np.array([0.179468, -0.701869, 0.665314, 0.180359]), None, True)
-                point6_program = self.world_interface.move_joint(
-                    [0.5, 0.18071, 0.329], np.array([0.191354, -0.705907, 0.677261, 0.0799752]), None, True)
-                retract_program = self.world_interface.move_joint(
-                    [0.5, 0.12771, 0.377], np.array([0.245167, -0.695143, 0.649404, 0.186936]), None, True)
-                home_program = self.world_interface.move_cfree(
-                    [0.5, -0.2, 0.35], np.array([0, 0.707107, -0.707107, 0]))
+        if self.internal_state == self.OpenStates.INIT:
+            self.world_interface.stop()
+            self.internal_state = self.OpenStates.WAITING_FOR_STOP
+            open_gripper_program = self.world_interface.get_open_gripper_program(no_wait=True)
+            motionsup_off = self.world_interface.motionsupervision_off()
+            
+            approach_program = self.world_interface.move_joint(
+                [0.5, -0.03829, 0.205], np.array([0.368725, -0.641516, 0.585942, 0.33041]), None, True)
+            point1_program = self.world_interface.move_joint(
+                [0.5, -0.00071, 0.182], np.array([0.425542, -0.606928, 0.535537, 0.404664]), None, True)
+            softservo_on = self.world_interface.softservo_on()
+            point2_program = self.world_interface.move_joint(
+                [0.5, 0.01071, 0.204], np.array([0.342386, -0.637357, 0.612253, 0.318895]), None, True)
+            point3_program = self.world_interface.move_joint(
+                [0.5, 0.03471, 0.255], np.array([0.296268, -0.677995, 0.619056, 0.263283]), None, True)
+            point4_program = self.world_interface.move_joint(
+                [0.5, 0.07471, 0.303], np.array([0.235313, -0.698104, 0.645344, 0.202015]), None, True)
+            point5_program = self.world_interface.move_joint(
+                [0.5, 0.12371, 0.329], np.array([0.179468, -0.701869, 0.665314, 0.180359]), None, True)
+            point6_program = self.world_interface.move_joint(
+                [0.5, 0.18071, 0.329], np.array([0.191354, -0.705907, 0.677261, 0.0799752]), None, True)
+            retract_program = self.world_interface.move_joint(
+                [0.5, 0.12771, 0.377], np.array([0.245167, -0.695143, 0.649404, 0.186936]), None, True)
+            home_program = self.world_interface.move_cfree(
+                [0.5, -0.2, 0.35], np.array([0, 0.707107, -0.707107, 0]))
 
-                self.full_placing_program = self.world_interface.finalize_program(open_gripper_program +
-                                                                                  motionsup_off + 
-                                                                                  approach_program +
-                                                                                  point1_program +
-                                                                                  softservo_on + 
-                                                                                  point2_program + 
-                                                                                  point3_program + 
-                                                                                  point4_program + 
-                                                                                  point5_program + 
-                                                                                  point6_program + 
-                                                                                  retract_program +
-                                                                                  home_program)
-            if self.internal_state == self.OpenStates.WAITING_FOR_STOP:
-                if self.world_interface.has_stopped():
-                    if not self.world_interface.run_program(self.full_placing_program):
-                        return self.failure()
-                    self.world_interface.set_manipulation_target('"centrifuge"')
-                    self.internal_state = self.OpenStates.WAITING_FOR_START
-            if self.internal_state == self.OpenStates.WAITING_FOR_START:
-                if self.world_interface.is_running():
-                    self.internal_state = self.OpenStates.RUNNING
-            if self.internal_state == self.OpenStates.RUNNING:
-                if self.world_interface.has_stopped():
-                    self.world_interface.set_object_opened('"centrifuge"', True)
-                    self.success()
-
-        return self.state
+            self.full_placing_program = self.world_interface.finalize_program(open_gripper_program +
+                                                                                motionsup_off + 
+                                                                                approach_program +
+                                                                                point1_program +
+                                                                                softservo_on + 
+                                                                                point2_program + 
+                                                                                point3_program + 
+                                                                                point4_program + 
+                                                                                point5_program + 
+                                                                                point6_program + 
+                                                                                retract_program +
+                                                                                home_program)
+        if self.internal_state == self.OpenStates.WAITING_FOR_STOP:
+            if self.world_interface.has_stopped():
+                if not self.world_interface.run_program(self.full_placing_program):
+                    return self.failure()
+                self.world_interface.set_manipulation_target('"centrifuge"')
+                self.internal_state = self.OpenStates.WAITING_FOR_START
+        if self.internal_state == self.OpenStates.WAITING_FOR_START:
+            if self.world_interface.is_running():
+                self.internal_state = self.OpenStates.RUNNING
+        if self.internal_state == self.OpenStates.RUNNING:
+            if self.world_interface.has_stopped():
+                self.world_interface.set_object_opened('"centrifuge"', True)
+                self.success()
 
 
 def get_condition_nodes():
