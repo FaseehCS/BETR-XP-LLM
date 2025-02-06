@@ -221,7 +221,7 @@ class WorldInterface(BaseWorldInterface):
         object_text = "Objects with known positions:"
         for object in self.object_position_known.keys():
             if self.object_position_known[object]:
-                object_text += f" {object},"
+                object_text += " " + object.split("|")[0] + ","
                 
         self.text_graph += object_text
 
