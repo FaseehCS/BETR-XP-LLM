@@ -168,7 +168,8 @@ class WorldInterface(BaseWorldInterface):
             height=960,
             fieldOfView=60,
         )
-        # self.controller.step(action="SetHandSphereRadius", radius=0.1)
+        # self.controller.step(action="SetHandSphereRadius", radius=0.0)
+        # self.controller.step(action="SetObjectFilter", objectIds=[], renderImage=False)
 
         self.graspable_objects = graspable_objects
         self.movable_objects = movable_objects
@@ -218,12 +219,12 @@ class WorldInterface(BaseWorldInterface):
             edge_text = f"{self.scene_graph.edges[edge]}"
             self.text_graph += edge_text + "\n"
             
-        object_text = "Robot knows these objects locations:"
+        object_text = "\nKnown Object Locations: ["
         for object in self.object_position_known.keys():
             if self.object_position_known[object]:
                 object_text += " " + object.split("|")[0] + ","
                 
-        self.text_graph += object_text
+        self.text_graph += object_text + "]"
 
         if file_path is None:
             file_path=self.root_folder_path
