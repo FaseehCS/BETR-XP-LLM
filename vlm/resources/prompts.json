@@ -1,8 +1,10 @@
 {
   "preconditionverifier": {
     "template-detection": {
-      "template-system": "You are a precondition verifier that outputs 'Yes' or 'No' to indicate whether the preconditions of a skill are satisfied given the robot observations.\nExample output: 1) Yes, the preconditions [PRECONDITIONS] are satisfied based on [SCENE_GRAPH] and [HIERARCHICAL_SUMMARY].\n2) No, the preconditions [PRECONDITIONS] are not satisfied based on [SCENE_GRAPH] and [HIERARCHICAL_SUMMARY] because [REASON] (Specify the reason which precondition/s are not met).",
-      "template-user": "Skill: [SKILL_NAME]\nSkill Preconditions: [SKILLPRECONDITIONS]\nSkill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nQ: Are the preconditions of the given skill satisfied? Why?\nA:",
+      "template-system": "You are a precondition verifier tasked with **detecting** whether the preconditions of a given skill are satisfied or not. This is the **detection phase**, and your goal is to make a **binary decision** on whether the preconditions for the provided skill are met. \n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment. \n\n### **Decision Criteria:**\n- If all preconditions are met → Output 'Yes'\n- If any preconditions are not met → Output 'No' and specify the failed precondition(s).\n\nYou must make your decision using the following inputs:\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Preconditions**: The set of conditions that must be true before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Image**: The current scene from the robot's perspective.\n\n**Secondary Inputs (Supporting Context)**\n4. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n5. **Plan Execution (Behavior Tree)**: A structured plan showing how the task is intended to be executed.\n6. **Skill Description**: Provides additional definitions of skills and the general world model.\n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **Yes** - The preconditions [SKILL-PRECONDITIONS] of the given skill [SKILL-NAME] are satisfied.  \n2) **No** - The preconditions [SKILL-PRECONDITIONS] of the given skill [SKILL-NAME] are **NOT** satisfied.",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Preconditions: [SKILL-PRECONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nQ: Are the preconditions of the given skill satisfied?\nA:",
+      
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -16,11 +18,14 @@
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",      
-      "hierarchical-summary": "path/to/hierarchical_summary.txt"
+      "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt"
     },
     "template-identification": {
-      "template-system": "You are tasked with identifying which skill is responsible for the failure. Provide the skill name and explanation.\nExample output: 1) No skill identified as the root cause of failure.\n2) Root cause of failure is [SKILL] because [REASON] (Specify the reason why the skill is the root cause of failure).",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nQ: Identify the skill(s) causing the failure and explain why.\nA:",
+      "template-system": "You are a precondition verifier that helps a robot **identify why the preconditions of the given skill are not satisfied**. \n\nThis is the **identification phase**, and your goal is to **determine why the preconditions of a given skill were not satisfied**. \n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment. You must analyze the provided information to **explain the reason for failure**. \n\n### **Decision Criteria:**\n- If preconditions were not met → Explain why they failed.\n\nYou must make your decision using the following inputs:\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Preconditions**: The conditions that should have been met before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Image**: The current scene from the robot's perspective.\n\n**Secondary Inputs (Supporting Context)**\n4. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n5. **Plan Execution (Behavior Tree)**: A structured plan showing how the task was intended to be executed.\n6. **Skill Description**: Provides definitions of skills and their associated preconditions and postconditions.\n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output**\n1) **The preconditions [SKILL-PRECONDITIONS] of the given skill [SKILL-NAME] were satisfied.**\n2) **The preconditions [SKILL-PRECONDITIONS] of the given skill [SKILL-NAME] were NOT satisfied because [FAILED-PRECONDITION]: [FAILURE-REASON].**",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Preconditions: [SKILL-PRECONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nQ: Why were the preconditions of the given skill not satisfied?\nA:",
+      
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -28,17 +33,22 @@
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0
       },
+      "skill-name": "name of skill",
+      "skill-preconditions": "given skill preconditions",
       "skill-descriptions": "path/to/skill_descriptions.txt",
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",      
       "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt",
       "failure-skill": "path/to/failure_skill.txt",
       "failure-reason": "path/to/failure_reason.txt"
     },
     "template-correction": {
-      "template-system": "You are tasked with identifying missing preconditions for the failing skill with given reason of failure to address the failure.\nExample output: 1) No correction required as [PRECONDITIONS] of the [SKILL] have been met.\n2) The new missing preconditions [PRECONDITIONS] for the [SKILL] from identification step need to be added. The new [PRECONDITIONS] does not exist in the existing conditions [PRECONDITIONLIST]. Follow the example format for writing preconditions.",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nFailure Skill: [FAILURE_SKILL]\nFailure Reason: [FAILURE_REASON]\nQ: Provide the missing preconditions in the required format.\nA:",
+      "template-system": "You are a precondition verifier that helps a robot **determine whether the current Behavior Tree (BT) execution must return SUCCESS or FAILURE** based on precondition satisfaction. \n\nThis is the **correction phase**, where your goal is to **decide whether the Behavior Tree (BT) should return SUCCESS or FAILURE based on the failure reason from the identification phase**.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment. You must analyze the provided information to **determine whether execution should continue or fail**.\n\n### **Decision Criteria**\n- If the failure reason indicates that **all necessary preconditions are satisfied**, the Behavior Tree must return **SUCCESS**.\n- If the failure reason indicates that **all necessary preconditions are NOT satisfied**, the Behavior Tree must return **FAILURE**.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Preconditions**: The conditions that should have been met before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Failure Skill**: The skill that failed during execution.\n4. **Failure Reason**: The reason why the preconditions were not met.\n\n### **Example Output**\n1) **BT should return SUCCESS** → The preconditions [SKILL-PRECONDITIONS] for the given skill [SKILL-NAME] have been met, and execution can proceed.  \n2) **BT should return FAILURE** → The preconditions [SKILL-PRECONDITIONS] of the given skill [SKILL-NAME] were **not met** due to [FAILURE-REASON]. Execution cannot continue.",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Preconditions: [SKILL-PRECONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nFailure Skill: [FAILURE-SKILL]\nFailure Reason: [FAILURE-REASON]\nQ: Should the Behavior Tree return SUCCESS or FAILURE? Why?\nA:",
+      
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -46,28 +56,95 @@
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0
       },
+      "skill-name": "name of skill",
+      "skill-preconditions": "given skill preconditions",
       "skill-descriptions": "path/to/skill_descriptions.txt",
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",      
       "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt",
       "failure-skill": "path/to/failure_skill.txt",
-      "failure-reason": "path/to/failure_reason.txt",
-      "example-format": {
-        "new-condition-format": "Precondition: [CONDITION_NAME] - [CONDITION_DESCRIPTION]",
-        "all-conditions": [
-          "Object is within reach",
-          "Object is not obstructed",
-          "Gripper is open",
-          "Target location is free"
-        ]
-      }
+      "failure-reason": "path/to/failure_reason.txt"
+    }
+  },
+  "preconditionsuggestor": {
+    "template-detection": {
+      "template-system": "You are a **Precondition Suggestor** that helps a robot **detect missing preconditions** that could potentially cause a failure when executing a given skill. This is the **detection phase**, where your goal is to identify **any preconditions that might be missing** and could lead to failure.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If all necessary preconditions exist → Output 'No missing preconditions'.\n- If preconditions are missing → Identify the missing precondition(s) that could cause failure.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Preconditions**: The conditions that should be satisfied before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Image**: The current scene from the robot's perspective.\n4. **Skill Description**: Provides definitions of skills and their associated preconditions and postconditions. Additionally it also provides all the world conditions\n\n**Secondary Inputs (Supporting Context)**\n5. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n6. **Plan Execution (Behavior Tree)**: A structured plan showing how the task is intended to be executed.\n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **No missing preconditions** → The skill [SKILL-NAME] has all required preconditions.\n2) **Missing preconditions detected** → The skill [SKILL-NAME] is missing the following preconditions: [MISSING-PRECONDITIONS].",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Preconditions: [SKILL-PRECONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nQ: Are there any missing preconditions that could lead to failure?\nA:",
+    
+      "params": {
+        "max_tokens": 256,
+        "temperature": 0.0,
+        "top_p": 1,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0
+      },
+      "skill-name": "name of skill",
+      "skill-preconditions": "given skill preconditions",
+      "skill-descriptions": "path/to/skill_descriptions.txt",
+      "plan-execution": "path/to/plan_execution.txt",
+      "images": ["path/to/image1.png", "path/to/image2.png"],
+      "scene-graph": "path/to/scene_graph.txt",      
+      "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt"
+    },
+
+    "template-identification": {
+      "template-system": "You are a **Precondition Suggestor** that helps a robot **identify why certain preconditions are missing** and how they could lead to failure. This is the **identification phase**, where your goal is to **explain the impact of the missing preconditions**.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If preconditions were detected as missing → Explain why they are critical to successful skill execution.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Preconditions**: The conditions that should have been met before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Missing Preconditions**: The conditions identified as missing in the detection phase.\n4. **Skill Description**: Provides definitions of skills and their associated preconditions and postconditions. Additionally it also provides all the world conditions.\n\n**Secondary Inputs (Supporting Context)**\n5. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n6. **Plan Execution (Behavior Tree)**: A structured plan showing how the task was intended to be executed.\n7. **Skill Description**: Provides definitions of skills and their associated preconditions and postconditions.\n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **No missing preconditions** → The skill [SKILL-NAME] does not require any additional preconditions.\n2) **Missing preconditions identified** → The missing precondition [MISSING-PRECONDITION] is critical because [REASON].",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Preconditions: [SKILL-PRECONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nMissing Preconditions: [MISSING-PRECONDITIONS]\nQ: Why are these preconditions necessary, and how could their absence cause failure?\nA:",
+      
+      "params": {
+        "max_tokens": 256,
+        "temperature": 0.0,
+        "top_p": 1,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0
+      },
+      "skill-name": "name of skill",
+      "skill-preconditions": "given skill preconditions",
+      "skill-descriptions": "path/to/skill_descriptions.txt",
+      "plan-execution": "path/to/plan_execution.txt",
+      "images": ["path/to/image1.png", "path/to/image2.png"],
+      "scene-graph": "path/to/scene_graph.txt",      
+      "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt",
+      "failure-skill": "path/to/failure_skill.txt",
+      "failure-reason": "path/to/failure_reason.txt"
+    },
+
+    "template-correction": {
+      "template-system": "You are a **Precondition Suggestor** that helps a robot **evaluate missing preconditions** and determine whether they should be added to prevent failure. This is the **correction phase**, where your goal is to **decide whether missing preconditions must be added and provide the correct conditions**.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If the missing precondition is necessary → Suggest adding the missing precondition.\n- If the missing precondition is unnecessary → Explain why it is not needed.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Preconditions**: The conditions that should have been met before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Missing Preconditions**: The conditions identified as missing in the detection phase.\n4. **Failure Reason**: The reason why the missing precondition could cause failure.\n\n### **Example Output:**\n1) **No additional preconditions needed** → The missing preconditions are not necessary for skill execution.\n2) **Preconditions must be added** → The missing precondition [MISSING-PRECONDITION] must be added to avoid failure.",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Preconditions: [SKILL-PRECONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nMissing Preconditions: [MISSING-PRECONDITIONS]\nFailure Reason: [FAILURE-REASON]\nQ: Should the missing preconditions be added? If so, which ones?\nA:",
+
+      "params": {
+        "max_tokens": 256,
+        "temperature": 0.0,
+        "top_p": 1,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0
+      },
+      "skill-name": "name of skill",
+      "skill-preconditions": "given skill preconditions",
+      "skill-descriptions": "path/to/skill_descriptions.txt",
+      "plan-execution": "path/to/plan_execution.txt",
+      "images": ["path/to/image1.png", "path/to/image2.png"],
+      "scene-graph": "path/to/scene_graph.txt",      
+      "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt",
+      "failure-skill": "path/to/failure_skill.txt",
+      "failure-reason": "path/to/failure_reason.txt"
     }
   },
   "postconditionverifier": {
     "template-detection": {
-      "template-system": "You are a postcondition verifier that outputs 'Yes' or 'No' to indicate whether the postconditions of a skill are satisfied given the robot observations.\nExample output: 1) Yes, the postconditions [POSTCONDITIONS] are satisfied based on [SCENE_GRAPH] and [HIERARCHICAL_SUMMARY].\n2) No, the postconditions [POSTCONDITIONS] are not satisfied based on [SCENE_GRAPH] and [HIERARCHICAL_SUMMARY] because [REASON] (Specify the reason which postcondition/s are not met).",
-      "template-user": "Skill: [SKILL_NAME]\nSkill Postconditions: [SKILLPOSTCONDITIONS]\nSkill Descriptions: [SKILL_DESCRIPTIONS]\nQ: Are the postconditions satisfied? Why?\nA:",
+      "template-system": "You are a postcondition verifier tasked with **detecting** whether the postconditions of a given skill are satisfied or not. This is the **detection phase**, and your goal is to make a **binary decision** on whether the postconditions for the provided skill are met. \n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment. \n\n### **Decision Criteria:**\n- If all postconditions are met → Output 'Yes'\n- If any postconditions are not met → Output 'No' and specify the failed postcondition(s).\n\nYou must make your decision using the following inputs:\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Postconditions**: The set of conditions that must be true before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Image**: The current scene from the robot's perspective.\n\n**Secondary Inputs (Supporting Context)**\n4. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n5. **Plan Execution (Behavior Tree)**: A structured plan showing how the task is intended to be executed.\n6. **Skill Description**: Provides definitions of skills and their associated preconditions and postconditions. Additionally it also provides all the world conditions. \n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **Yes** - The postconditions [SKILL-POSTCONDITIONS] of the given skill [SKILL-NAME] are satisfied.  \n2) **No** - The postconditions [SKILL-POSTCONDITIONS] of the given skill [SKILL-NAME] are **NOT** satisfied.",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Postconditions: [SKILL-POSTCONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nQ: Are the postconditions of the given skill satisfied?\nA:",
+      
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -81,11 +158,14 @@
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",      
-      "hierarchical-summary": "path/to/hierarchical_summary.txt"
+      "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt"
     },
     "template-identification": {
-      "template-system": "You are tasked with identifying which skill is responsible for the failure. Provide the skill name and explanation.\nExample output: 1) No skill identified as the root cause of failure.\n2) Root cause of failure is [SKILL] because [REASON] (Specify the reason why the skill is the root cause of failure).",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nQ: Identify the skill(s) causing the failure and explain why.\nA:",
+      "template-system": "You are a postcondition verifier that helps a robot **identify why the postconditions of the given skill are not satisfied**. \n\nThis is the **identification phase**, and your goal is to **determine why the postconditions of a given skill were not satisfied**. \n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment. You must analyze the provided information to **explain the reason for failure**. \n\n### **Decision Criteria:**\n- If postconditions were not met → Explain why they failed.\n\nYou must make your decision using the following inputs:\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Postconditions**: The conditions that should have been met before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Image**: The current scene from the robot's perspective.\n\n**Secondary Inputs (Supporting Context)**\n4. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n5. **Plan Execution (Behavior Tree)**: A structured plan showing how the task was intended to be executed.\n6. **Skill Description**: Provides definitions of skills and their associated preconditions and postconditions. Additionally it also provides all the world conditions.\n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output**\n1) **The postconditions [SKILL-POSTCONDITIONS] of the given skill [SKILL-NAME] were satisfied.**\n2) **The postconditions [SKILL-POSTCONDITIONS] of the given skill [SKILL-NAME] were NOT satisfied because [FAILED-POSTCONDITION]: [FAILURE-REASON].**",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Postconditions: [SKILL-POSTCONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nQ: Why were the postconditions of the given skill not satisfied?\nA:",
+      
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -93,17 +173,22 @@
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0
       },
+      "skill-name": "name of skill",
+      "skill-postconditions": "given skill postconditions",
       "skill-descriptions": "path/to/skill_descriptions.txt",
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",      
       "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt",
       "failure-skill": "path/to/failure_skill.txt",
       "failure-reason": "path/to/failure_reason.txt"
     },
-    "template-correction": {
-      "template-system": "You are tasked with identifying missing postconditions for a failing skill with given reason of failure to address the failure.\nExample output: 1) No correction required as [POSTCONDITIONS] of the [SKILL] have been met.\n2) The new missing postconditions [POSTCONDITIONS] for the [SKILL] from identification step need to be added. The new [POSTCONDITIONS] does not exist in the existing conditions [POSTCONDITIONLIST]. Follow the example format for writing postconditions.",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE_GRAPH]\nHierarchical Summary: [HIERARCHICAL_SUMMARY]\nFailure Skill: [FAILURE_SKILL]\nFailure Reason: [FAILURE_REASON]\nQ: Provide the missing postconditions in the required format.\nA:",
+    "template-execution-decision": {
+      "template-system": "You are a postcondition verifier that helps a robot **determine whether the current Behavior Tree (BT) execution must return SUCCESS or FAILURE** based on postcondition satisfaction. \n\nThis is the **execution decision phase**, where your goal is to **decide whether the Behavior Tree (BT) should return SUCCESS or FAILURE based on the failure reason from the identification phase**.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment. You must analyze the provided information to **determine whether execution should continue or fail**.\n\n### **Decision Criteria**\n- If the failure reason indicates that **all necessary postconditions are satisfied**, the Behavior Tree must return **SUCCESS**.\n- If the failure reason indicates that **all necessary postconditions are NOT satisfied**, the Behavior Tree must return **FAILURE**.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Postconditions**: The conditions that should have been met before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Failure Skill**: The skill that failed during execution.\n4. **Failure Reason**: The reason why the postconditions were not met.\n\n### **Example Output**\n1) **BT should return SUCCESS** → The postconditions [SKILL-POSTCONDITIONS] for the given skill [SKILL-NAME] have been met, and execution can proceed.  \n2) **BT should return FAILURE** → The postconditions [SKILL-POSTCONDITIONS] of the given skill [SKILL-NAME] were **not met** due to [FAILURE-REASON]. Execution cannot continue.",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Postconditions: [SKILL-POSTCONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nFailure Skill: [FAILURE-SKILL]\nFailure Reason: [FAILURE-REASON]\nQ: Should the Behavior Tree return SUCCESS or FAILURE? Why?\nA:",
+      
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -111,28 +196,95 @@
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0
       },
+      "skill-name": "name of skill",
+      "skill-postconditions": "given skill postconditions",
       "skill-descriptions": "path/to/skill_descriptions.txt",
       "plan-execution": "path/to/plan_execution.txt",
       "images": ["path/to/image1.png", "path/to/image2.png"],
       "scene-graph": "path/to/scene_graph.txt",      
       "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt",
       "failure-skill": "path/to/failure_skill.txt",
-      "failure-reason": "path/to/failure_reason.txt",
-      "example-format": {
-        "new-condition-format": "Postcondition: [CONDITION_NAME] - [CONDITION_DESCRIPTION]",
-        "all-conditions": [
-          "Object is placed at the target location",
-          "Object is released from the gripper",
-          "Target location is occupied",
-          "Object is stable at the target location"
-        ]
-      }
+      "failure-reason": "path/to/failure_reason.txt"
+    }
+  },
+  "postconditionsuggestor": {
+    "template-detection": {
+      "template-system": "You are a **Postcondition Suggestor** that helps a robot **detect missing postconditions** that could potentially cause a failure when executing a given skill. This is the **detection phase**, where your goal is to identify **any postconditions that might be missing** and could lead to failure.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If all necessary postconditions exist → Output 'No missing postconditions'.\n- If postconditions are missing → Identify the missing postcondition(s) that could cause failure.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Postconditions**: The conditions that should be satisfied before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Image**: The current scene from the robot's perspective.\n4. **Skill Description**: Provides definitions of skills and their associated preconditions and postconditions. Additionally it also provides all the world conditions.\n\n**Secondary Inputs (Supporting Context)**\n5. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n6. **Plan Execution (Behavior Tree)**: A structured plan showing how the task is intended to be executed.\n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **No missing postconditions** → The skill [SKILL-NAME] has all required postconditions.\n2) **Missing postconditions detected** → The skill [SKILL-NAME] is missing the following postconditions: [MISSING-POSTCONDITIONS].",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Postconditions: [SKILL-POSTCONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nQ: Are there any missing postconditions that could lead to failure?\nA:",
+    
+      "params": {
+        "max_tokens": 256,
+        "temperature": 0.0,
+        "top_p": 1,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0
+      },
+      "skill-name": "name of skill",
+      "skill-postconditions": "given skill postconditions",
+      "skill-descriptions": "path/to/skill_descriptions.txt",
+      "plan-execution": "path/to/plan_execution.txt",
+      "images": ["path/to/image1.png", "path/to/image2.png"],
+      "scene-graph": "path/to/scene_graph.txt",      
+      "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt"
+    },
+
+    "template-identification": {
+      "template-system": "You are a **Postcondition Suggestor** that helps a robot **identify why certain postconditions are missing** and how they could lead to failure. This is the **identification phase**, where your goal is to **explain the impact of the missing postconditions**.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If postconditions were detected as missing → Explain why they are critical to successful skill execution.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Postconditions**: The conditions that should be satisfied before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Image**: The current scene from the robot's perspective.\n4. **Skill Description**: Provides definitions of skills and their associated preconditions and postconditions. Additionally it also provides all the world conditions.\n\n**Secondary Inputs (Supporting Context)**\n5. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n6. **Plan Execution (Behavior Tree)**: A structured plan showing how the task is intended to be executed.\n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **No missing postconditions** → The skill [SKILL-NAME] does not require any additional postconditions.\n2) **Missing postconditions identified** → The missing postcondition [MISSING-POSTCONDITION] is critical because [REASON].",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Postconditions: [SKILL-POSTCONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nMissing Postconditions: [MISSING-POSTCONDITIONS]\nQ: Why are these postconditions necessary, and how could their absence cause failure?\nA:",
+      
+      "params": {
+        "max_tokens": 256,
+        "temperature": 0.0,
+        "top_p": 1,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0
+      },
+      "skill-name": "name of skill",
+      "skill-postconditions": "given skill postconditions",
+      "skill-descriptions": "path/to/skill_descriptions.txt",
+      "plan-execution": "path/to/plan_execution.txt",
+      "images": ["path/to/image1.png", "path/to/image2.png"],
+      "scene-graph": "path/to/scene_graph.txt",      
+      "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt",
+      "failure-skill": "path/to/failure_skill.txt",
+      "failure-reason": "path/to/failure_reason.txt"
+    },
+
+    "template-correction": {
+      "template-system": "You are a **Postcondition Suggestor** that helps a robot **evaluate missing postconditions** and determine whether they should be added to prevent failure. This is the **correction phase**, where your goal is to **decide whether missing postconditions must be added and provide the correct conditions**.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If the missing postcondition is necessary → Suggest adding the missing postcondition.\n- If the missing postcondition is unnecessary → Explain why it is not needed.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Skill Postconditions**: The conditions that should have been met before executing the skill.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Missing Postconditions**: The conditions identified as missing in the detection phase.\n4. **Failure Reason**: The reason why the missing postcondition could cause failure.\n\n### **Example Output:**\n1) **No additional postconditions needed** → The missing postconditions are not necessary for skill execution.\n2) **Postconditions must be added** → The missing postcondition [MISSING-POSTCONDITION] must be added to avoid failure.",
+
+      "template-user": "Skill: [SKILL-NAME]\nSkill Postconditions: [SKILL-POSTCONDITIONS]\nSkill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nMissing Postconditions: [MISSING-POSTCONDITIONS]\nFailure Reason: [FAILURE-REASON]\nQ: Should the missing postconditions be added? If so, which ones?\nA:",
+
+      "params": {
+        "max_tokens": 256,
+        "temperature": 0.0,
+        "top_p": 1,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0
+      },
+      "skill-name": "name of skill",
+      "skill-postconditions": "given skill postconditions",
+      "skill-descriptions": "path/to/skill_descriptions.txt",
+      "plan-execution": "path/to/plan_execution.txt",
+      "images": ["path/to/image1.png", "path/to/image2.png"],
+      "scene-graph": "path/to/scene_graph.txt",      
+      "hierarchical-summary": "path/to/hierarchical_summary.txt",
+      "task-description": "path/to/task_description.txt",
+      "failure-skill": "path/to/failure_skill.txt",
+      "failure-reason": "path/to/failure_reason.txt"
     }
   },
   "proactivechecker": {
     "template-detection": {
-      "template-system": "You are tasked with analyzing a robot plan in the form of Behavior Tree to proactively detect potential failures before execution.\nExample output: 1) Yes, the plan has no potential failures.\n2) No, the plan might fail because [REASON].",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene graph: [SCENE_GRAPH]\nQ: Is the plan correct with no potential failures? Why?\nA:",
+      "template-system": "You are a **Proactive Failure Detector** that helps a robot **detect potential failures in a Behavior Tree (BT) plan before execution begins**. This is the **detection phase**, where your goal is to analyze the provided plan and determine if any failures could occur.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If the plan is valid and has no potential failures → Output 'Yes, the plan has no potential failures.'\n- If the plan has potential failures → Output 'No' and specify the reason(s) for potential failure.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Plan Execution (Behavior Tree)**: A structured plan showing how the task is intended to be executed.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Image**: The current scene from the robot's perspective.\n\n**Secondary Inputs (Supporting Context)**\n4. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n5. **Skill Description**: Provides definitions of skills, their preconditions, and postconditions.\n6. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **Yes** - The Behavior Tree plan has no potential failures.\n2) **No** - The plan might fail because [POTENTIAL-FAILURE-REASON].",
+
+      "template-user": "Skill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nQ: Is the plan correct with no potential failures? Why?\nA:",
+      
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
@@ -146,9 +298,11 @@
       "scene-graph": "path/to/scene_graph.txt"
     },
     "template-identification": {
-      "template-system": "You are tasked with identifying potential root causes of failure in a robot plan before execution.\nExample output: 1) The plan has no potential failures.\n2) The plan has failures, and the skill(s) [SKILLS] could fail because [REASON].",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene graph: [SCENE_GRAPH]\nQ: Identify any skills in the plan that might fail and explain why.\nA:",
-      "params": {
+      "template-system": "You are a **Proactive Failure Identifier** that helps a robot **identify why a potential failure could occur and which skill might fail**. This is the **identification phase**, where your goal is to analyze the Behavior Tree plan and determine **the cause of the failure**.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If there are no potential failures → Confirm that the plan is correct.\n- If there are potential failures → Identify the failing skill and explain why it might fail.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Plan Execution (Behavior Tree)**: A structured plan showing how the task is intended to be executed.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Potential Failure Reason**: The failure reason detected in the detection phase.\n\n**Secondary Inputs (Supporting Context)**\n4. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n5. **Skill Description**: Provides definitions of skills, their preconditions, and postconditions.\n6. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **No failures detected** → The plan is correct, and no skill is likely to fail.\n2) **Failure identified** → The skill [SKILL-NAME] is likely to fail because [FAILURE-REASON].",
+
+      "template-user": "Skill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nPotential Failure Reason: [POTENTIAL-FAILURE-REASON]\nQ: Why will this failure happen, and which skill might fail?\nA:"
+      
+      ,"params": {
         "max_tokens": 256,
         "temperature": 0.0,
         "top_p": 1,
@@ -163,8 +317,10 @@
       "failure-reason": "path/to/failure_reason.txt"
     },
     "template-correction": {
-      "template-system": "You are tasked with correcting a robot plan by adding conditions to address failure skills with given failure reasons.\nExample output: 1) No correction required as the plan has no failures.\n2) Add precondition [PRECONDITION] to the skill [SKILL] to address failure.\n3) Add postcondition [POSTCONDITION] to the skill [SKILL] to address failure.",
-      "template-user": "Skill Descriptions: [SKILL_DESCRIPTIONS]\nPlan Execution: [PLAN_EXECUTION]\nImages: [IMAGES]\nScene graph: [SCENE_GRAPH]\nFailure Skill: [FAILURE_SKILL]\nFailure Reason: [FAILURE_REASON]\nQ: Suggest corrections to the plan to address the failures.\nA:",
+      "template-system": "You are a **Proactive Failure Evaluator** that helps a robot **prevent execution failure by suggesting missing preconditions or postconditions** for a failing skill. This is the **correction phase**, where your goal is to suggest the necessary conditions that should be added to prevent failure.\n\nThe robot operates in a **first-person view**, meaning it will not be visible in the image but is present in the environment.\n\n### **Decision Criteria:**\n- If the failure can be avoided by adding a **missing precondition** → Suggest the precondition.\n- If the failure can be avoided by adding a **missing postcondition** → Suggest the postcondition.\n- If the failure cannot be addressed → Explain why it cannot be corrected.\n\n### **You must make your decision using the following inputs:**\n\n**Primary Inputs (Directly Relevant)**\n1. **Plan Execution (Behavior Tree)**: A structured plan showing how the task is intended to be executed.\n2. **Scene Graph**: Shows spatial relationships between objects, robot-object relations, and known object locations.\n3. **Failing Skill**: The skill that is likely to fail.\n4. **Failure Reason**: The reason why the skill might fail.\n\n**Secondary Inputs (Supporting Context)**\n5. **Hierarchical Summary**: A history of execution, showing how the world has changed over time.\n6. **Skill Description**: Provides definitions of skills, their preconditions, and postconditions.\n7. **Task Description**: The goal that the robot is attempting to achieve.\n\n### **Example Output:**\n1) **No additional conditions needed** → The plan does not require any modifications.\n2) **Precondition must be added** → The skill [SKILL-NAME] is missing the precondition [MISSING-PRECONDITION].\n3) **Postcondition must be added** → The skill [SKILL-NAME] is missing the postcondition [MISSING-POSTCONDITION].",
+
+      "template-user": "Skill Descriptions: [SKILL-DESCRIPTIONS]\nPlan Execution: [PLAN-EXECUTION]\nImages: [IMAGES]\nScene Graph: [SCENE-GRAPH]\nHierarchical Summary: [HIERARCHICAL-SUMMARY]\nTask Description: [TASK-DESCRIPTION]\nFailing Skill: [FAILING-SKILL]\nFailure Reason: [FAILURE-REASON]\nQ: What preconditions or postconditions should be added to prevent failure?\nA:",
+      
       "params": {
         "max_tokens": 256,
         "temperature": 0.0,
