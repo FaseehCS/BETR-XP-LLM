@@ -224,6 +224,7 @@ class VLMPrompter:
         user_prompt = user_prompt.replace("[SKILL-PRECONDITIONS]", f"{self.skill_preconditions}" or "")
         user_prompt = user_prompt.replace("[SKILL-POSTCONDITIONS]", f"{self.skill_postconditions}" or "")
         user_prompt = user_prompt.replace("[SKILL-DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
+        user_prompt = user_prompt.replace("[CONDITION-DESCRIPTIONS]", f"{self.skill_descriptions['conditions']}" or "")
         user_prompt = user_prompt.replace("[PLAN-EXECUTION]", self.plan_execution or "")
         user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
         user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", self.hierarchical_summary or "")
