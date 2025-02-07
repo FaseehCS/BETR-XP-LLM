@@ -33,7 +33,7 @@ ROTATIONS = {
 
 
 def gen_node(obj, event, obj_held_prev=False):
-    name = obj['objectId']
+    name = obj['name']
     object_id = obj['objectId']
     total_points = torch.tensor(np.array([]))
     pcd_obj = torch.tensor(np.array([]))
@@ -191,7 +191,8 @@ class WorldInterface(BaseWorldInterface):
         self.scene_changes = []
         self.error_message = ''
         self.failed_behavior = ''
-        
+        self.scene_graph.object_position_known = self.object_position_known
+        self.scene_graph.object_positions = self.object_positions        
         for obj in self.controller.last_event.metadata["objects"]:
             self.update_scene_graph(obj, self.controller.last_event)
         # self.get_feedback()
@@ -310,8 +311,6 @@ class WorldInterface(BaseWorldInterface):
                 self.scene_graph_nodes.append(obj['objectId'])
                 self.object_position_known[obj['objectId']] = True
                 self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
-                self.scene_graph.object_position_known = self.object_position_known
-                self.scene_graph.object_positions = self.object_positions
                 node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
                 # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
                 self.scene_graph.add_node_wo_edge(node)
@@ -364,10 +363,7 @@ class WorldInterface(BaseWorldInterface):
 
     def get_name(self, obj_id):
         """ Get the object name from the object id """
-        for obj in self.controller.last_event.metadata['objects']:
-            if obj['objectId'] == obj_id:
-                return obj['name']
-        return None
+        return  self.get_obj(obj_id)['name']
 
     def get_obj(self, obj_id):
         """ Get the object from the object id """
@@ -393,8 +389,11 @@ class WorldInterface(BaseWorldInterface):
             return False
 
     def object_at(self, target_object, relation, relative_object):
-        if (target_object, relative_object) in self.scene_graph.edges.keys():
-            return relation == self.scene_graph.edges[(target_object, relative_object)].edge_type
+        """ Check if object is at a specific location """
+        target_object_name, relative_object_name = self.get_obj(target_object)['name'], self.get_obj(relative_object)['name']
+        for edge in self.scene_graph.edges.keys():
+            if target_object_name.split("_")[0] in edge[0] and relative_object_name.split("_")[0] in edge[1]:
+                return relation == self.scene_graph.edges[edge].edge_type
         else:
             return False
 
