@@ -26,7 +26,7 @@ class AtPos(Behavior):
     Check if object is at position
     """
     skill_name = "At_Pos"
-    description = "Check if object is at position"
+    description = "Check if object is at position e.g. At_Pos(Cup, countertop), At_Pos(Cup, microwave), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = AtPos.to_string(parameters)
@@ -95,7 +95,7 @@ class Grasped(Behavior):
     Check if object is grasped
     """
     skill_name = "grasped"
-    description = "Check if object is in robot's gripper"
+    description = "Check if object is in robot's gripper. If the gripper is invisible the object will be in the bottom of the image. The object will be floating and zoomed in. E.g. grasped(Cup),  grasped(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Grasped.to_string(parameters)
@@ -126,7 +126,7 @@ class LocationKnown(Behavior):
     Check if object location is known
     """
     skill_name = "Location_Known"
-    description = "Check if object location is known"
+    description = "Check if object location is known. This includes the objects that are clearly visible to the robot and the objects that are not visible but we know their locations and navigable. E.g. Location_Known(Cup), Location_Known(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = LocationKnown.to_string(parameters)
@@ -178,7 +178,7 @@ class NearRobot(Behavior):
     Check if object is within reach
     """
     skill_name = "Near_Robot"
-    description = "Check if object is within reacht"
+    description = "Check if object is within reach. This includes the objects that are directly infront of the robot and are visible to the robot. E.g. Near_Robot(Cup), Near_Robot(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = NearRobot.to_string(parameters)
@@ -204,7 +204,7 @@ class Opened(Behavior):
     Check if object is open
     """
     skill_name = "Opened"
-    description = "Check if object is opened"
+    description = "Check if object is opened e.g. Opened(MicrowaveDoor), Opened(FridgeDoor), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Opened.to_string(parameters)
@@ -230,7 +230,7 @@ class Toggled(Behavior):
     Check if object is open
     """
     skill_name = "Toggled"
-    description = "Check if object is turned on"
+    description = "Check if object is turned on/off e.g. Toggled(Microwave), Toggled(CoffeeMachine), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Opened.to_string(parameters)
@@ -256,7 +256,7 @@ class Unlocked(Behavior):
     Check if object is unlocked
     """
     skill_name = "Unlocked"
-    description = "Check if object is unlocked"
+    description = "Check if object is unlocked e.g. Unlocked(Safe), Unlocked(Box), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Unlocked.to_string(parameters)
