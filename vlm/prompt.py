@@ -141,8 +141,8 @@ class VLMPrompter:
                     print(f"Error: Could not load image '{image_path}'. Exception: {e}")
                     continue
 
-        if image_files and 'gpt-4o-mini' not in self.gpt_version:
-            raise ValueError("The provided model does not support image input.")
+        # if image_files and 'gpt-4o-mini' not in self.gpt_version:
+        #     raise ValueError("The provided model does not support image input.")
 
         # Fail-safe mechanism for retries
         max_retries = 5
@@ -220,21 +220,21 @@ class VLMPrompter:
         prompt = {}
         user_prompt = params["template-user"]
         
-        user_prompt = user_prompt.replace("[SKILL_NAME]", f"{self.skill_name}" or "")
-        user_prompt = user_prompt.replace("[SKILLPRECONDITIONS]", f"{self.skill_preconditions}" or "")
-        user_prompt = user_prompt.replace("[SKILLPOSTCONDITIONS]", f"{self.skill_postconditions}" or "")
-        user_prompt = user_prompt.replace("[SKILL_DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
-        user_prompt = user_prompt.replace("[PLAN_EXECUTION]", self.plan_execution or "")
-        user_prompt = user_prompt.replace("[SCENE_GRAPH]", self.scene_graph or "")
-        user_prompt = user_prompt.replace("[HIERARCHICAL_SUMMARY]", self.hierarchical_summary or "")
+        user_prompt = user_prompt.replace("[SKILL-NAME]", f"{self.skill_name}" or "")
+        user_prompt = user_prompt.replace("[SKILL-PRECONDITIONS]", f"{self.skill_preconditions}" or "")
+        user_prompt = user_prompt.replace("[SKILL-POSTCONDITIONS]", f"{self.skill_postconditions}" or "")
+        user_prompt = user_prompt.replace("[SKILL-DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
+        user_prompt = user_prompt.replace("[PLAN-EXECUTION]", self.plan_execution or "")
+        user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
+        user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", self.hierarchical_summary or "")
         user_prompt = user_prompt.replace("[IMAGES]", ", ".join(self.images) if self.images else "")
 
         if include_failure_info:
-            user_prompt = user_prompt.replace("[FAILURE_SKILL]", self.failure_skill or "")
-            user_prompt = user_prompt.replace("[FAILURE_REASON]", self.failure_reason or "")
+            user_prompt = user_prompt.replace("[FAILURE-SKILL]", self.failure_skill or "")
+            user_prompt = user_prompt.replace("[FAILURE-REASON]", self.failure_reason or "")
         else:
-            user_prompt = user_prompt.replace("[FAILURE_SKILL]", "")
-            user_prompt = user_prompt.replace("[FAILURE_REASON]", "")
+            user_prompt = user_prompt.replace("[FAILURE-SKILL]", "")
+            user_prompt = user_prompt.replace("[FAILURE-REASON]", "")
 
         prompt["user"] = user_prompt
         prompt["system"] = params["template-system"]

@@ -218,7 +218,7 @@ class WorldInterface(BaseWorldInterface):
             edge_text = f"{self.scene_graph.edges[edge]}"
             self.text_graph += edge_text + "\n"
             
-        object_text = "Objects with known positions:"
+        object_text = "Robot knows these objects locations:"
         for object in self.object_position_known.keys():
             if self.object_position_known[object]:
                 object_text += " " + object.split("|")[0] + ","

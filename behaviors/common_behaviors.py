@@ -430,26 +430,10 @@ class ActionBehavior(Behavior):
 
         if "No" in detection_result:
             # Identification
-            identification_params = {
-                "template-user": self.vlm_prompter.skill_descriptions,
-                "params": self.vlm_prompter.postconditionverifier["template-identification"]["params"],
-            }
-            identification_result = self.vlm_prompter.postcondition_identification(identification_params, updated_inputs={
-                "images": self.world_interface.get_updated_image(self.vlm_prompter.task_dir),
-                "scene_graph": "scene_graph.txt",
-                "hierarchical_summary": "hierarchical_summary.txt",
-            })
+            identification_result = self.vlm_prompter.postcondition_identification()
 
             # Correction
-            correction_params = {
-                "template-user": self.vlm_prompter.skill_descriptions,
-                "params": self.vlm_prompter.postconditionverifier["template-correction"]["params"],
-            }
-            correction_result = self.vlm_prompter.postcondition_correction(correction_params, updated_inputs={
-                "images": self.world_interface.get_updated_image(self.vlm_prompter.task_dir),
-                "scene_graph": "scene_graph.txt",
-                "hierarchical_summary": "hierarchical_summary.txt",
-            })
+            correction_result = self.vlm_prompter.postcondition_correction()
 
             if self.verbose:
                 print(f"Postcondition Check - Detection: {detection_result}")
