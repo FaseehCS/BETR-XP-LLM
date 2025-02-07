@@ -1,1 +1,20 @@
-{"skills": {"Pick": "Picks up a specified object.", "Place": "Place an object with specified relation (at, on, inside) (e.g. Place Cup Inside microwave, place apple On countertop).", "navigate": "Navigate to a specific location in the environment.", "Open": "Open an object (e.g. open microwave door or fridge door)", "Close": "Close an object (e.g. close microwave door or fridge door)", "Toggle_On": "Turn on an object (e.g. microwave or coffee machine)", "Toggle_Off": "Turn off an object (e.g. microwave or coffee machine)"}, "conditions": {"At_Pos": "Check if object is at position", "grasped": "Check if object is in robot's gripper", "Location_Known": "Check if object location is known", "Near_Robot": "Check if object is within reacht", "Opened": "Check if object is opened", "Unlocked": "Check if object is unlocked", "Toggled": "Check if object is turned on"}}
+{
+    "skills": {
+        "Pick": "Picks up a specified object.",
+        "Place": "Place an object with specified relation (at, on, inside) (e.g. Place Cup Inside microwave, place apple On countertop).",
+        "navigate": "Navigate to a specific location in the environment.",
+        "Open": "Open an object (e.g. open microwave door or fridge door)",
+        "Close": "Close an object (e.g. close microwave door or fridge door)",
+        "Toggle_On": "Turn on an object (e.g. microwave or coffee machine)",
+        "Toggle_Off": "Turn off an object (e.g. microwave or coffee machine)"
+    },
+    "conditions": {
+        "At_Pos": "Check if object is at position e.g. At_Pos(Cup, countertop), At_Pos(Cup, microwave), etc.",
+        "grasped": "Check if object is in robot's gripper e.g. grasped(Cup),  grasped(Apple), etc.",
+        "Location_Known": "Check if object location is known. This includes the objects that are clearly visible to the robot and the objects that are not visible but we know their locations and navigable. E.g. Location_Known(Cup), Location_Known(Apple), etc.",
+        "Near_Robot": "Check if object is within reach. This includes the objects that are directly infront of the robot and are visible to the robot. E.g. Near_Robot(Cup), Near_Robot(Apple), etc.",
+        "Opened": "Check if object is opened e.g. Opened(MicrowaveDoor), Opened(FridgeDoor), etc.",
+        "Unlocked": "Check if object is unlocked e.g. Unlocked(Safe), Unlocked(Box), etc.",
+        "Toggled": "Check if object is turned on/off e.g. Toggled(Microwave), Toggled(CoffeeMachine), etc."
+    }
+}
