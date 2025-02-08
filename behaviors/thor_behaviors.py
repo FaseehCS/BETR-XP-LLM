@@ -497,9 +497,7 @@ class Place(ActionBehavior):
             # if self.parameters["relation"] == "in":
             #     self.world_interface.put_in(self.target_object, self.parameters["relative_object"])
             # else:
-            self.world_interface.place_obj(self.target_object, self.parameters["relative_object"])
-            if (self.target_object,"robot_gripper") in self.world_interface.scene_graph.edges.keys():
-                self.world_interface.scene_graph.edges.pop((self.target_object,"robot_gripper"))
+            self.world_interface.place_obj(self.target_object, self.parameters["relative_object"], self.parameters["relation"])
 
     def calc_release_position(self):
         """Gets release position of object"""
