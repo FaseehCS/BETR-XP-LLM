@@ -109,7 +109,7 @@ def gen_node(obj, event, obj_held_prev=False):
     total_points_dict[object_id] = total_points
     bbox = get_2d_bbox_from_3d_pcd(event, object_id, total_points_dict)
     if name is not None and bbox is not None:
-        node = GraphNode(name, 
+        node = GraphNode(name=name, 
                     object_id=object_id, 
                     pos3d=box.get_center(), 
                     corner_pts=np.array(box.get_box_points()), 
@@ -281,7 +281,7 @@ class WorldInterface(BaseWorldInterface):
                 if obj['isPickedUp']:
                     self.grasped_object = obj['objectId']
                     self.scene_graph_nodes.append(obj['objectId'])
-                    self.scene_graph.edges[(obj['objectId'],"robot_gripper")] = GraphEdge(obj['objectId'], "robot_gripper", edge_type="in")
+                    self.scene_graph.edges[(obj['objectId'],"robot_gripper")] = GraphEdge(obj['name'], "robot_gripper", edge_type="inside")
                     self.held_prev.append(obj['objectId'])
             if obj['moveable']:
                 self.movable_objects.append(obj['objectId'])                
@@ -333,7 +333,7 @@ class WorldInterface(BaseWorldInterface):
 
                 remove_list = []
                 for edge in self.scene_graph.edges.keys():
-                    if obj['objectId'] in edge:
+                    if obj['name'] in edge:
                         remove_list.append(edge)
                 for edge in remove_list:
                     self.scene_graph.edges.pop(edge)
@@ -347,7 +347,7 @@ class WorldInterface(BaseWorldInterface):
         elif self.object_position_known[obj['objectId']] == False:
             self.scene_graph_nodes.remove(obj['objectId'])
             for edge in self.scene_graph.edges.keys():
-                if obj['objectId'] in edge:
+                if obj['name'] in edge:
                     self.scene_graph.edges.pop(edge)
 
     def calc_distance3d(self, target_object, position):
@@ -455,68 +455,97 @@ class WorldInterface(BaseWorldInterface):
         """ Drop the object held by the robot """
         return self.controller.step(action='ReleaseObject')
 
-    def place_obj(self, target_object, position):
+    def place_obj(self, target_object, position, relation=None):
         """ Place an object at a specific location """
         if type(position) == str:
-            position = self.get_position(position)
+            # position = self.get_position(position)
+            if relation == 'on':
+                self.put_on(target_object.split("|")[0], position.split("|")[0])
+            if relation == 'inside':
+                self.put_in(target_object.split("|")[0], position.split("|")[0])    
+                
         else:
             position = self.pos_to_dict(position)
         if self.grasped_object == target_object:
-            return self.controller.step(action='PlaceObjectAtPoint', objectId=target_object, position=position)
+            self.controller.step(action='PlaceObjectAtPoint', objectId=target_object, position=position)
+            
+        if self.controller.last_event.metadata['lastActionSuccess']:
+            if (self.get_name(target_object),"robot_gripper") in self.scene_graph.edges.keys():
+                self.scene_graph.edges.pop((self.get_name(target_object),"robot_gripper"))
 
-    def put_on(self, target_object, receptacle):
-        """ Put an object on another object """
-        placing_position = self.controller.step(action="GetSpawnCoordinatesAboveReceptacle", objectId=receptacle).metadata['actionReturn']
-        return self.place_obj(target_object, placing_position)
+    # def put_on(self, target_object, receptacle):
+    #     """ Put an object on another object """
+    #     placing_position = self.controller.step(action="GetSpawnCoordinatesAboveReceptacle", objectId=receptacle).metadata['actionReturn']
+    #     return self.place_obj(target_object, placing_position)
 
-    def put_in(self, target_object, receptacle):
-        """ Put an object in another object """
+    def put_in(self, src_obj_type, target_obj_type, fail_execution=False, replan=False, chosen_failure=None):
+        print(f"[INFO] Execute action: Putting {src_obj_type} in {target_obj_type}")
+        src_obj_type_in_sim = src_obj_type
+        if src_obj_type in NAME_MAP:
+            src_obj_type_in_sim= NAME_MAP[src_obj_type]
+        target_obj_type_in_sim = target_obj_type
+        if target_obj_type in NAME_MAP:
+            target_obj_type_in_sim = NAME_MAP[target_obj_type]
+        
+        if chosen_failure == "wrong_perception":
+            if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                src_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            elif target_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                target_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
 
-        receptacle_obj = self.get_obj(receptacle)
-        target_obj = self.get_obj(target_object)
-        target_obj_type = target_obj['objectType']
-        src_obj = self.controller.last_event.metadata['arm']['heldObjects'][0] if len(self.controller.last_event.metadata['arm']['heldObjects']) > 0 else None
-
-        if len(receptacle_obj['receptacleObjectIds']) > 0:
-            print("[ERROR] Receptacle is already occupied")
-            return None
-
-        print(f"[INFO] Execute action: Putting {target_object} in {receptacle}")
-
+        src_obj = None
+        for obj in self.controller.last_event.metadata["objects"]:
+            if obj['isPickedUp']:
+                src_obj = obj
+                break
         if src_obj is None:
             print("The robot is not holding anything")
-        elif src_obj['objectType'] != target_obj_type:
-            print(f"The robot is not holding {target_obj_type}")
+        elif src_obj['objectType'] != src_obj_type:
+            print(f"The robot is not holding {src_obj_type}")
         else:
             print("The robot is holding:", src_obj['objectId'], src_obj['objectType'])
+        
+        if fail_execution or src_obj is None:
+            e = self.controller.last_event
+            return
 
         # thor-specific, put in sink sometimes does not work as expected
         if target_obj_type == 'Sink':
             target_obj_type = 'SinkBasin'
-
-        receptacle_pos = receptacle_obj['position']
+    
+        #if there are multiple instances
+        found_obj = False
+        # for obj_unity_name, v in taskUtil.unity_name_map.items():
+        #     if v == target_obj_type:
+        #         target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["name"] == obj_unity_name)
+        #         found_obj = True
+        #         break
+        if not found_obj:
+            target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
+        target_obj_id = target_obj['objectId']
+        target_obj_pos = target_obj['position']
 
         # if navigation is required
-        if not receptacle_obj['visible'] and receptacle_obj['objectType'] not in ['Floor', 'Wall', 'Ceiling']:
-            self.navigate_to_obj(receptacle)
+        if not target_obj['visible'] and target_obj['objectId'] in self.object_position_known.keys():
+            self.navigate_to_obj(target_obj['objectId'])
 
         # look at object
         robot_pos = self.controller.last_event.metadata['agent']['position']
-        self.look_at(target_pos=receptacle_pos)
+        self.look_at(target_pos=target_obj_pos)
 
         # can only put one object in microwave
-        if target_obj_type == 'Microwave' and len(receptacle_obj['receptacleObjectIds']) > 0:
-            print("Microwave already contains an object: ", receptacle_obj['receptacleObjectIds'])
+        if target_obj_type == 'Microwave' and len(target_obj['receptacleObjectIds']) > 0:
+            print("Microwave already contains an object: ", target_obj['receptacleObjectIds'])
             e = self.controller.last_event
             return
-
-        if target_obj_type == 'Toaster' and receptacle_obj['isToggled']:
-            place_obj_in_small_receptacle(receptacle_pos)
+        
+        if target_obj_type == 'Toaster' and target_obj['isToggled']:
+            self.place_obj_in_small_receptacle(target_obj_pos)
         else:
             if src_obj:
                 e = self.controller.step(
                     action="PutObject",
-                    objectId=receptacle,
+                    objectId=target_obj_id,
                     forceAction=False,
                     placeStationary=True
                 )
@@ -525,10 +554,160 @@ class WorldInterface(BaseWorldInterface):
                     time.sleep(1)
                 else:
                     print("thor put_obj did not work, try place obj in small recetacle primitive")
-                    if target_obj_type not in ["CoffeeMachine", "Microwave"]:
-                        place_obj_in_small_receptacle(receptacle_pos)
+                    if target_obj_type in ["CoffeeMachine", "Microwave"]:
+                        pass
+                    else:
+                        self.place_obj_in_small_receptacle(target_obj_pos)
+    
+    def put_on(self, src_obj_type, target_obj_type, fail_execution=False, target_obj_id=None, replan=False, chosen_failure=None):
+        print(f"[INFO] Execute action: Putting {src_obj_type} on {target_obj_type}")
+        src_obj_type_in_sim = src_obj_type
+        if src_obj_type in NAME_MAP:
+            src_obj_type_in_sim = NAME_MAP[src_obj_type]
+        if False: #chosen_failure == 'ambiguous_plan' and target_obj_type.split("-")[0] == taskUtil.failure_injection_params['ambi_obj_type']:
+            target_obj_type_in_sim = target_obj_type.split('-')[0]
+            if target_obj_type_in_sim in NAME_MAP:
+                target_obj_type_in_sim = NAME_MAP[target_obj_type_in_sim]
+        else:
+            target_obj_type_in_sim = target_obj_type
+            if target_obj_type in NAME_MAP:
+                target_obj_type_in_sim = NAME_MAP[target_obj_type]
 
-        return self.controller.step(action="Done")
+        if chosen_failure == "wrong_perception":
+            if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                src_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            elif target_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                target_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+        
+        src_obj = None
+        for obj in self.controller.last_event.metadata["objects"]:
+            if obj['isPickedUp']:
+                src_obj = obj
+                break
+        if src_obj is None:
+            print("The robot is not holding anything")
+        elif src_obj['objectType'] != src_obj_type:
+            print(f"The robot is not holding {src_obj_type}")
+        else:
+            print("The robot is holding: ", src_obj['objectId'], src_obj['objectType'])
+
+        e = self.controller.last_event
+        if fail_execution or src_obj is None or src_obj['objectType'] != src_obj_type:
+            return
+
+        if target_obj_id is None:
+            if "-" in target_obj_type and target_obj_type.split("-")[0] in ['StoveBurner', 'CounterTop']:
+                for key, val in taskUtil.unity_name_map.items():
+                    if val == target_obj_type:
+                        target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["name"] == key)
+                        break
+            else:
+                target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
+        # if the exact object instance is specified
+        else:
+            target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == target_obj_id)
+
+        target_obj_id = target_obj['objectId']
+        target_obj_pos = target_obj['position']
+        if target_obj['objectId'] in self.object_position_known.keys():
+            self.navigate_to_obj(target_obj['objectId'])
+        
+        # look at object
+        robot_pos = self.controller.last_event.metadata['agent']['position']
+        self.look_at(target_pos=target_obj_pos)
+        e = self.controller.step(
+            action="PutObject",
+            objectId=target_obj_id,
+            forceAction=False,
+            placeStationary=True
+        )
+        
+        # if not successful, try standing
+        if not e.metadata['lastActionSuccess']:
+            self.controller.step(action="Stand")
+            e = self.controller.step(
+                action="PutObject",
+                objectId=target_obj_id,
+                forceAction=False,
+                placeStationary=True
+            )
+        self.controller.step(action="Done")
+
+        # if still not successful, try pre-defined primitives
+        if not e.metadata['lastActionSuccess']:
+            print("thor put_obj did not work, applying self-defined primitives")
+            if 'heatPotato' in self.root_folder_path:
+                self.controller.step(
+                    action="MoveHeldObjectAhead",
+                    moveMagnitude=0.4,
+                    forceVisible=False
+                )
+                e = self.controller.step(
+                    action="DropHandObject",
+                    forceAction=False
+                )
+            if target_obj_type.split("-")[0] == 'CounterTop':
+                place_obj_on_large_receptacle(src_obj, target_obj_type, target_obj_id=target_obj_id, replan=replan)
+        else:
+            new_src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == src_obj['objectId'])
+            self.look_at(target_pos=new_src_obj['position'])
+            
+        time.sleep(1)
+
+    def place_obj_in_small_receptacle(self, place_location, replan=False):
+        print("[INFO] Running primitive to place object in small receptacle")
+        robot_pos = self.controller.last_event.metadata['agent']['position']
+        tilt = self.controller.last_event.metadata['agent']['cameraHorizon']
+        dist = np.sqrt((robot_pos['x'] - place_location['x'])**2 + (robot_pos['z'] - place_location['z'])**2)
+        #print("tilt, dist: ", tilt, dist)
+        tilt = np.round(tilt, 1)
+        dist = np.round(dist, 1) - 0.4
+        # Look straight (tilt = 0)
+        if tilt > 0:
+            e = self.controller.step(
+                action="LookUp",
+                degrees=tilt
+            )
+        else:
+            e = self.controller.step(
+                action="LookDown",
+                degrees=tilt
+            )
+        #print("Look: ", e)
+        self.controller.step(action="Done")
+
+        # Move object over receptacle
+        e = self.controller.step(
+            action="MoveHeldObjectAhead",
+            moveMagnitude=dist,
+            forceVisible=False
+        )
+        self.controller.step(action='Done')
+        #print("move object: ", e)
+        
+        # Drop object
+        e = self.controller.step(
+            action="DropHandObject",
+            forceAction=False
+        )
+        self.controller.step(action='Done')
+        #print("drop object: ", e)
+
+        # Look at the receptacle again
+        if tilt > 0:
+            e = self.controller.step(
+                action="LookDown",
+                degrees=tilt
+            )
+        else:
+            e = self.controller.step(
+                action="LookUp",
+                degrees=tilt
+            )
+        #print("Look: ", e)
+        # save_data(task, e, replan=replan)
+        self.controller.step(action="Done")
+        time.sleep(1)
 
     def toggle_on(self, target_object):
         """ Toggle an object on """
