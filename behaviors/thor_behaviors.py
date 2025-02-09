@@ -969,7 +969,7 @@ class FillWithWater(ActionBehavior):
     Fill an object with liquid
     """
     skill_name = "Fill_With_Water"
-    description = "Fill an object with liquid (e.g. Pour water in cup, Pour juice in glass, etc.)"
+    description = "Fill an object with Water from the faucet (e.g. Fill Cup with water, Fill Pot with water, etc.)"
 
     @staticmethod
     class FillWithWaterStates(IntEnum):
@@ -998,7 +998,7 @@ class FillWithWater(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "Pour " + extract_name(parameters["interact_object"]) + "in" + extract_name(parameters["reciptacle"])
+        node_string = "Fill " + extract_name(parameters["interact_object"]) + "with water"
         node_string += "!"
         return node_string
     
@@ -1038,10 +1038,11 @@ class Pour(ActionBehavior):
         self.internal_state = self.PourStates.INIT
         self.target_object = parameters["interact_object"]
         self.reciptacle = parameters["reciptacle"]
-        preconditions = [NearRobot('', {"destination": self.target_object}, world_interface),
-                         Filled('', {"interact_object": self.target_object}, world_interface)]
+        preconditions = [Filled('', {"interact_object": self.target_object}, world_interface),
+                        NearRobot('', {"destination": parameters["reciptacle"]}, world_interface),
+                          Grasped('', {"interact_object": self.target_object}, world_interface),]
         postconditions = [Filled('', {"not": True,"interact_object": self.target_object}, world_interface),
-                          Cleaned('', {"interact_object": self.target_object}, world_interface)
+                          Cleaned('', {"interact_object": self.target_object}, world_interface),
                           ]
         if self.reciptacle is None:
             self.reciptacle = "SinkBasin"
