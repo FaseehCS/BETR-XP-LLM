@@ -328,7 +328,33 @@ class Cracked(Behavior):
 
     def update(self):
         return self.check_negated(self.world_interface.is_cracked(self.parameters["interact_object"]))
-    
+
+class Cleaned(Behavior):
+    """
+    Check if object is Clean
+    """
+    skill_name = "Cleaned"
+    description = "Check if object is clean e.g. clean(Mug), clean(Bowl), etc."
+
+    def __init__(self, name, parameters, world_interface, _verbose=False):
+        name = Cleaned.to_string(parameters)
+        super().__init__(name, parameters, world_interface)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Cleaned):
+            # don't attempt to compare against unrelated types
+            return False
+        return super().__eq__(other)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = extract_name(parameters["interact_object"]) + " Clean?"
+        return Behavior.common_string_rules(node_string, parameters)
+
+    def update(self):
+        return self.check_negated(self.world_interface.is_clean(self.parameters["interact_object"]))
+
 class Filled(Behavior):
     """
     Check if object is filled
@@ -938,12 +964,66 @@ class Crack(ActionBehavior):
     def execute(self):
         self.world_interface.crack_obj(self.target_object)
 
-class Pour(ActionBehavior):
+class FillWithWater(ActionBehavior):
     """
     Fill an object with liquid
     """
-    skill_name = "Pour"
+    skill_name = "Fill_With_Water"
     description = "Fill an object with liquid (e.g. Pour water in cup, Pour juice in glass, etc.)"
+
+    @staticmethod
+    class FillWithWaterStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.FillWithWaterStates.INIT
+        self.target_object = parameters["interact_object"]
+        preconditions = [NearRobot('', {"destination": "SinkBasin"}, world_interface),
+                         AtPos('', {"interact_object": self.target_object,
+                                    "relation": "inside",
+                                    "relative_object": "SinkBasin"}, world_interface)]
+        postconditions = [Filled('', {"interact_object": self.target_object}, world_interface),
+                          Toggled('',{"interact_object": "Faucet"}, world_interface)]
+        if self.reciptacle is None:
+            self.reciptacle = "SinkBasin"
+        
+        name = Pour.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "Pour " + extract_name(parameters["interact_object"]) + "in" + extract_name(parameters["reciptacle"])
+        node_string += "!"
+        return node_string
+    
+    def initialise(self):
+        self.internal_state = self.FillWithWaterStates.INIT
+        ActionBehavior.initialise(self)
+        if self.world_interface.is_Filled(self.target_object):
+            self.success()
+        else:
+            self.failure()
+                
+    def check_for_success(self):
+        """Check if object is on."""
+        if self.world_interface.is_Filled(self.target_object):
+            self.success()
+            
+    def execute(self):
+        self.world_interface.toggle_on("Faucet")
+
+class Pour(ActionBehavior):
+    """
+    Pour liquid out of object
+    """
+    skill_name = "Pour"
+    description = "Empty an object from liquid (e.g. Pour water from cup, Pour coffee from mug, etc.)"
 
     @staticmethod
     class PourStates(IntEnum):
@@ -958,8 +1038,11 @@ class Pour(ActionBehavior):
         self.internal_state = self.PourStates.INIT
         self.target_object = parameters["interact_object"]
         self.reciptacle = parameters["reciptacle"]
-        preconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
-        postconditions = [Filled('', {"not": True,"interact_object": self.target_object}, world_interface)]
+        preconditions = [NearRobot('', {"destination": self.target_object}, world_interface),
+                         Filled('', {"interact_object": self.target_object}, world_interface)]
+        postconditions = [Filled('', {"not": True,"interact_object": self.target_object}, world_interface),
+                          Cleaned('', {"interact_object": self.target_object}, world_interface)
+                          ]
         if self.reciptacle is None:
             self.reciptacle = "SinkBasin"
         
@@ -976,14 +1059,14 @@ class Pour(ActionBehavior):
     def initialise(self):
         self.internal_state = self.PourStates.INIT
         ActionBehavior.initialise(self)
-        if self.world_interface.is_Filled(self.target_object):
+        if not self.world_interface.is_Filled(self.target_object):
             self.success()
         else:
             self.failure()
                 
     def check_for_success(self):
         """Check if object is on."""
-        if self.world_interface.is_Filled(self.target_object):
+        if not self.world_interface.is_Filled(self.target_object):
             self.success()
             
     def execute(self):
@@ -991,9 +1074,9 @@ class Pour(ActionBehavior):
 
 def get_condition_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked, Toggled, Sliced, Cracked, Filled]
+    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked, Toggled, Sliced, Cracked, Filled, Cleaned]
 
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place, Navigate, Open, Close, ToggleOn, ToggleOff, Slice, Pour]
+    return [Grasp, Place, Navigate, Open, Close, ToggleOn, ToggleOff, Slice, Pour, FillWithWater]
