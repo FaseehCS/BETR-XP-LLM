@@ -957,8 +957,11 @@ class Pour(ActionBehavior):
         self.world_interface = world_interface
         self.internal_state = self.PourStates.INIT
         self.target_object = parameters["interact_object"]
+        self.reciptacle = parameters["reciptacle"]
         preconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
-        postconditions = [Filled('', {"interact_object": self.target_object}, world_interface)]
+        postconditions = [Filled('', {"not": True,"interact_object": self.target_object}, world_interface)]
+        if self.reciptacle is None:
+            self.reciptacle = "SinkBasin"
         
         name = Pour.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
@@ -966,7 +969,7 @@ class Pour(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "Pour " + extract_name(parameters["interact_object"])
+        node_string = "Pour " + extract_name(parameters["interact_object"]) + "in" + extract_name(parameters["reciptacle"])
         node_string += "!"
         return node_string
     
@@ -984,11 +987,11 @@ class Pour(ActionBehavior):
             self.success()
             
     def execute(self):
-        self.world_interface.pour(self.target_object)
+        self.world_interface.pour(self.target_object, self.reciptacle)
 
 def get_condition_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked, Toggled, Sliced, Filled]
+    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked, Toggled, Sliced, Cracked, Filled]
 
 
 def get_action_nodes():
