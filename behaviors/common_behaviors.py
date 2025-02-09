@@ -362,7 +362,7 @@ class ActionBehavior(Behavior):
         self.counter = 0
         self.state = pt.common.Status.RUNNING
         self.hierarchical_summary()
-        self.precondition_check()
+        # self.precondition_check()
 
     @staticmethod
     def parse_parameters(node_descriptor):
@@ -456,7 +456,7 @@ class ActionBehavior(Behavior):
                 self.world_interface.get_feedback()
                 self.check_for_success()
             self.end_hierarchical_summary()
-            self.postcondition_check()
+            # self.postcondition_check()
         else:
             ActionBehavior.update(self)
         return self.state
