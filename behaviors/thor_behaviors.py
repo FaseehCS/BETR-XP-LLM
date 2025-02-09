@@ -276,6 +276,84 @@ class Unlocked(Behavior):
 
     def update(self):
         return self.check_negated(self.world_interface.is_unlocked(self.parameters["interact_object"]))
+    
+class Sliced(Behavior):
+    """
+    Check if object is sliced
+    """
+    skill_name = "Sliced"
+    description = "Check if object is sliced e.g. Sliced(Apple), Sliced(Carrot), etc."
+
+    def __init__(self, name, parameters, world_interface, _verbose=False):
+        name = Sliced.to_string(parameters)
+        super().__init__(name, parameters, world_interface)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Sliced):
+            # don't attempt to compare against unrelated types
+            return False
+        return super().__eq__(other)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = extract_name(parameters["interact_object"]) + " sliced?"
+        return Behavior.common_string_rules(node_string, parameters)
+
+    def update(self):
+        return self.check_negated(self.world_interface.is_sliced(self.parameters["interact_object"]))
+    
+class Cracked(Behavior):
+    """
+    Check if object is cracked
+    """
+    skill_name = "Cracked"
+    description = "Check if object is cracked e.g. Cracked(Egg), Cracked(Nut), etc."
+
+    def __init__(self, name, parameters, world_interface, _verbose=False):
+        name = Cracked.to_string(parameters)
+        super().__init__(name, parameters, world_interface)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Cracked):
+            # don't attempt to compare against unrelated types
+            return False
+        return super().__eq__(other)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = extract_name(parameters["interact_object"]) + " cracked?"
+        return Behavior.common_string_rules(node_string, parameters)
+
+    def update(self):
+        return self.check_negated(self.world_interface.is_cracked(self.parameters["interact_object"]))
+    
+class Filled(Behavior):
+    """
+    Check if object is filled
+    """
+    skill_name = "Filled"
+    description = "Check if object is filled with liquid e.g. Filled(Cup), Filled(Bowl), etc."
+
+    def __init__(self, name, parameters, world_interface, _verbose=False):
+        name = Filled.to_string(parameters)
+        super().__init__(name, parameters, world_interface)
+        
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Filled):
+            # don't attempt to compare against unrelated types
+            return False
+        return super().__eq__(other)
+    
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = extract_name(parameters["interact_object"]) + " filled?"
+        return Behavior.common_string_rules(node_string, parameters)
+    
+    def update(self):
+        return self.check_negated(self.world_interface.is_filled(self.parameters["interact_object"]))
 
 class Grasp(ActionBehavior):
     """
@@ -765,12 +843,154 @@ class ToggleOff(ActionBehavior):
             
     def execute(self):
         self.world_interface.toggle_off(self.target_object)
+
+class Slice(ActionBehavior):
+    """
+    Toggle on an object (e.g. microwave or coffee machine)
+    """
+    skill_name = "Slice"
+    description = "Slices an object like a fruit or a vegetable (e.g. Slice Apple, Slice Carrot, etc.)"
+
+    class SliceStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.SliceStates.INIT
+        self.target_object = parameters["interact_object"]
+        preconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
+        postconditions = [Sliced('', {"interact_object": self.target_object}, world_interface)]
+        
+        name = Slice.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "Slice " + extract_name(parameters["interact_object"])
+        node_string += "!"
+        return node_string
     
+    def initialise(self):
+        self.internal_state = self.SliceStates.INIT
+        ActionBehavior.initialise(self)
+        if self.world_interface.is_sliced(self.target_object):
+            self.success()
+        else:
+            self.failure()
+                
+    def check_for_success(self):
+        """Check if object is on."""
+        if self.world_interface.is_sliced(self.target_object):
+            self.success()
+            
+    def execute(self):
+        self.world_interface.slice_obj(self.target_object)
+
+class Crack(ActionBehavior):
+    """
+    Crack an object (e.g. Crack an egg)
+    """
+    skill_name = "Crack"
+    description = "Crack an object (e.g. Crack an egg, Crack a nut, etc.)"
+
+    class CrackStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.CrackStates.INIT
+        self.target_object = parameters["interact_object"]
+        preconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
+        postconditions = [Cracked('', {"interact_object": self.target_object}, world_interface)]
+        
+        name = Crack.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "Crack " + extract_name(parameters["interact_object"])
+        node_string += "!"
+        return node_string
+    
+    def initialise(self):
+        self.internal_state = self.CrackStates.INIT
+        ActionBehavior.initialise(self)
+        if self.world_interface.is_cracked(self.target_object):
+            self.success()
+        else:
+            self.failure()
+                
+    def check_for_success(self):
+        """Check if object is on."""
+        if self.world_interface.is_cracked(self.target_object):
+            self.success()
+            
+    def execute(self):
+        self.world_interface.crack_obj(self.target_object)
+
+class Pour(ActionBehavior):
+    """
+    Fill an object with liquid
+    """
+    skill_name = "Pour"
+    description = "Fill an object with liquid (e.g. Pour water in cup, Pour juice in glass, etc.)"
+
+    @staticmethod
+    class PourStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.PourStates.INIT
+        self.target_object = parameters["interact_object"]
+        preconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
+        postconditions = [Filled('', {"interact_object": self.target_object}, world_interface)]
+        
+        name = Pour.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "Pour " + extract_name(parameters["interact_object"])
+        node_string += "!"
+        return node_string
+    
+    def initialise(self):
+        self.internal_state = self.PourStates.INIT
+        ActionBehavior.initialise(self)
+        if self.world_interface.is_Filled(self.target_object):
+            self.success()
+        else:
+            self.failure()
+                
+    def check_for_success(self):
+        """Check if object is on."""
+        if self.world_interface.is_Filled(self.target_object):
+            self.success()
+            
+    def execute(self):
+        self.world_interface.pour(self.target_object)
+
 def get_condition_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked, Toggled]
+    return [AtPos, Grasped, LocationKnown, NearRobot, Opened, Unlocked, Toggled, Sliced, Filled]
 
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place, Navigate, Open, Close, ToggleOn, ToggleOff]
+    return [Grasp, Place, Navigate, Open, Close, ToggleOn, ToggleOff, Slice, Pour]

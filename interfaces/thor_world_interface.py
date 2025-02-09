@@ -397,6 +397,30 @@ class WorldInterface(BaseWorldInterface):
         else:
             return False
 
+    def is_toggled(self, target_object):
+        """ Check if an object is toggled on """
+        return self.get_obj(target_object)['isToggled']
+
+    def open_obj(self, target_object):
+        """ Open an object """
+        return self.controller.step(action='OpenObject', objectId=target_object)
+   
+    def close_obj(self, target_object):
+        """ Open an object """
+        return self.controller.step(action='CloseObject', objectId=target_object)
+     
+    def is_opened(self, target_object):
+        """ Check if an object is opened """
+        return self.get_obj(target_object)['isOpen']
+    
+    def is_filled(self, target_object):
+        """ Check if an object is filled with liquid """
+        return self.get_obj(target_object)['isFilledWithLiquid']
+
+    def is_cracked(self, target_object):
+        """ Check if an object is cracked """
+        return self.get_obj(target_object)['isBroken']
+
     def move(self, direction, magnitude=0.25):
         """ Move one step in the specified direction """
         return self.controller.step(action=DIRECTIONS[direction], moveMagnitude=magnitude)
@@ -473,12 +497,7 @@ class WorldInterface(BaseWorldInterface):
             if (self.get_name(target_object),"robot_gripper") in self.scene_graph.edges.keys():
                 self.scene_graph.edges.pop((self.get_name(target_object),"robot_gripper"))
 
-    # def put_on(self, target_object, receptacle):
-    #     """ Put an object on another object """
-    #     placing_position = self.controller.step(action="GetSpawnCoordinatesAboveReceptacle", objectId=receptacle).metadata['actionReturn']
-    #     return self.place_obj(target_object, placing_position)
-
-    def put_in(self, src_obj_type, target_obj_type, fail_execution=False, replan=False, chosen_failure=None):
+    def put_in(self, src_obj_type, target_obj_type, fail_execution=False, chosen_failure=None):
         print(f"[INFO] Execute action: Putting {src_obj_type} in {target_obj_type}")
         src_obj_type_in_sim = src_obj_type
         if src_obj_type in NAME_MAP:
@@ -513,15 +532,7 @@ class WorldInterface(BaseWorldInterface):
         if target_obj_type == 'Sink':
             target_obj_type = 'SinkBasin'
     
-        #if there are multiple instances
-        found_obj = False
-        # for obj_unity_name, v in taskUtil.unity_name_map.items():
-        #     if v == target_obj_type:
-        #         target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["name"] == obj_unity_name)
-        #         found_obj = True
-        #         break
-        if not found_obj:
-            target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
+        target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
         target_obj_id = target_obj['objectId']
         target_obj_pos = target_obj['position']
 
@@ -559,7 +570,7 @@ class WorldInterface(BaseWorldInterface):
                     else:
                         self.place_obj_in_small_receptacle(target_obj_pos)
     
-    def put_on(self, src_obj_type, target_obj_type, fail_execution=False, target_obj_id=None, replan=False, chosen_failure=None):
+    def put_on(self, src_obj_type, target_obj_type, fail_execution=False, target_obj_id=None, chosen_failure=None):
         print(f"[INFO] Execute action: Putting {src_obj_type} on {target_obj_type}")
         src_obj_type_in_sim = src_obj_type
         if src_obj_type in NAME_MAP:
@@ -596,13 +607,7 @@ class WorldInterface(BaseWorldInterface):
             return
 
         if target_obj_id is None:
-            if "-" in target_obj_type and target_obj_type.split("-")[0] in ['StoveBurner', 'CounterTop']:
-                for key, val in taskUtil.unity_name_map.items():
-                    if val == target_obj_type:
-                        target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["name"] == key)
-                        break
-            else:
-                target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
+            target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
         # if the exact object instance is specified
         else:
             target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == target_obj_id)
@@ -647,107 +652,32 @@ class WorldInterface(BaseWorldInterface):
                     forceAction=False
                 )
             if target_obj_type.split("-")[0] == 'CounterTop':
-                place_obj_on_large_receptacle(src_obj, target_obj_type, target_obj_id=target_obj_id, replan=replan)
+                self.place_obj_on_large_receptacle(src_obj, target_obj_type, target_obj_id=target_obj_id)
         else:
             new_src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == src_obj['objectId'])
             self.look_at(target_pos=new_src_obj['position'])
             
         time.sleep(1)
 
-    def place_obj_in_small_receptacle(self, place_location, replan=False):
-        print("[INFO] Running primitive to place object in small receptacle")
-        robot_pos = self.controller.last_event.metadata['agent']['position']
-        tilt = self.controller.last_event.metadata['agent']['cameraHorizon']
-        dist = np.sqrt((robot_pos['x'] - place_location['x'])**2 + (robot_pos['z'] - place_location['z'])**2)
-        #print("tilt, dist: ", tilt, dist)
-        tilt = np.round(tilt, 1)
-        dist = np.round(dist, 1) - 0.4
-        # Look straight (tilt = 0)
-        if tilt > 0:
-            e = self.controller.step(
-                action="LookUp",
-                degrees=tilt
-            )
-        else:
-            e = self.controller.step(
-                action="LookDown",
-                degrees=tilt
-            )
-        #print("Look: ", e)
-        self.controller.step(action="Done")
+    # def toggle_on(self, target_object):
+    #     """ Toggle an object on """
+    #     return self.controller.step(action='ToggleObjectOn', objectId=target_object)
 
-        # Move object over receptacle
-        e = self.controller.step(
-            action="MoveHeldObjectAhead",
-            moveMagnitude=dist,
-            forceVisible=False
-        )
-        self.controller.step(action='Done')
-        #print("move object: ", e)
-        
-        # Drop object
-        e = self.controller.step(
-            action="DropHandObject",
-            forceAction=False
-        )
-        self.controller.step(action='Done')
-        #print("drop object: ", e)
-
-        # Look at the receptacle again
-        if tilt > 0:
-            e = self.controller.step(
-                action="LookDown",
-                degrees=tilt
-            )
-        else:
-            e = self.controller.step(
-                action="LookUp",
-                degrees=tilt
-            )
-        #print("Look: ", e)
-        # save_data(task, e, replan=replan)
-        self.controller.step(action="Done")
-        time.sleep(1)
-
-    def toggle_on(self, target_object):
-        """ Toggle an object on """
-        return self.controller.step(action='ToggleObjectOn', objectId=target_object)
-
-    def toggle_off(self, target_object):
-        """ Toggle an object off """
-        return self.controller.step(action='ToggleObjectOff', objectId=target_object)
+    # def toggle_off(self, target_object):
+    #     """ Toggle an object off """
+    #     return self.controller.step(action='ToggleObjectOff', objectId=target_object)
     
-    def is_toggled(self, target_object):
-        """ Check if an object is toggled on """
-        return self.get_obj(target_object)['isToggled']
+    # def crack_obj(self, target_object):
+    #     """ Crack an object """
+    #     return self.controller.step(action='BreakObject', objectId=target_object)
 
-    def open_obj(self, target_object):
-        """ Open an object """
-        return self.controller.step(action='OpenObject', objectId=target_object)
-   
-    def close_obj(self, target_object):
-        """ Open an object """
-        return self.controller.step(action='CloseObject', objectId=target_object)
-     
-    def is_opened(self, target_object):
-        """ Check if an object is opened """
-        return self.get_obj(target_object)['isOpen']
-
-    def close_obj(self, target_object):
-        """ Close an object """
-        return self.controller.step(action='CloseObject', objectId=target_object)
-
-    def fill_obj(self, target_object, liquid):
-        """ Fill an object with liquid """
-        return self.controller.step(action='FillObjectWithLiquid', objectId=target_object, receptacleObjectId=liquid)
-
-    def crack_obj(self, target_object):
-        """ Crack an object """
-        return self.controller.step(action='BreakObject', objectId=target_object)
-
-    def slice_obj(self, target_object):
-        """ Slice an object """
-        return self.controller.step(action='SliceObject', objectId=target_object)
+    # def slice_obj(self, target_object):
+    #     """ Slice an object """
+    #     return self.controller.step(action='SliceObject', objectId=target_object)
+    
+    def is_sliced(self, target_object):
+        """ Check if an object is sliced """
+        return self.get_obj(target_object)['isSliced']
 
     def pos_to_dict(self, pos):
         return {'x': pos[0], 'y': pos[1], 'z': pos[2]}
@@ -924,11 +854,6 @@ class WorldInterface(BaseWorldInterface):
                         tup = (dist, obj)
                         target_objs.append(tup)
                 target_objs = sorted(target_objs, key=lambda d: d[0])
-            else:
-                for obj_unity_name, v in self.unity_name_map.items():
-                    if v == target_obj_type:
-                        target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["name"] == obj_unity_name)
-                        target_objs.append((0, target_obj))
         else: # target_obj_id is specified
             target_objs.append((0, target_obj))
 
@@ -1006,17 +931,451 @@ class WorldInterface(BaseWorldInterface):
         self.look_at(place_location)
         return self.controller.step(action="Done")
 
-    def run_program(self, programs):
-        """ Run an action """
-        try:
-            for program, args in programs:
-                if args == []:
-                    event = program()
-                else:
-                    event = program(*args)
-                if not event.metadata['lastActionSuccess']:            
-                    return False
-            return True
-        except Exception as e:
-            self.error_message = str(e)
+    def navigate_to_obj(self, obj_type, to_drop=False, failure_injection_idx=0, obj_id=None, fail_execution=False, chosen_failure=None):
+        print("[INFO] Execute action: Navigate to", obj_type)
+        obj_type_in_sim = obj_type
+        if obj_type in NAME_MAP:
+            obj_type_in_sim = NAME_MAP[obj_type]
+        drop_failure_injected = False
+
+        if chosen_failure == "wrong_perception":
+            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+
+        if fail_execution:
+            e = self.controller.last_event
             return False
+
+        if obj_id is not None:
+            obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == obj_id)
+        else:
+            obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+
+        # BFS search for poth
+        reachable_positions = self.controller.step(action="GetReachablePositions").metadata['actionReturn']
+        reachable_points = self.get_2d_reachable_points(reachable_positions)
+        closest_pos = closest_position(obj["position"], reachable_positions)
+        robot_pos = self.controller.last_event.metadata['agent']['position']
+        target_pos_val = [closest_pos['x'], closest_pos['z']]
+        # print("robot_pos, target_pos, closest_to_target_pos: ", robot_pos, target_pos_val, closest_pos)
+        self.grid_size = self.grid.shape[0]
+        # calculate self.grid_index from self.grid_value
+        for row in range(self.grid.shape[0]):
+            for col in range(self.grid.shape[1]):
+                if [round(robot_pos['x'], 2), round(robot_pos['z'], 2)] == [self.grid[row, col, 0], self.grid[row, col, 1]]:
+                    robot_x = row
+                    robot_y = col
+                if [round(target_pos_val[0], 2), round(target_pos_val[1], 2)] == [self.grid[row, col, 0], self.grid[row, col, 1]]:
+                    target_x = row
+                    target_y = col
+        target_pos = [target_x, target_y]
+        # print("*** start, goal: ", robot_x, robot_y, target_pos)
+        path = findPath(self.grid, x=robot_x, y=robot_y, target_pos=target_pos, reachable_points=reachable_points)
+        # print("path: ", path)
+
+        if path is None:
+            print("[ERROR] No valid path is found from robot to target object")
+            self.controller.step(action="Done")
+            return
+
+        for p in path:
+            x = self.grid[p.x,p.y][0]
+            z = self.grid[p.x,p.y][1]
+            y = 0.9
+            # print("p: ", p, x, z)
+            e = self.controller.step(
+                action="Teleport",
+                position=dict(x=x, y=y, z=z),
+                forceAction=True,
+                # horizon=30,
+                standing=True
+            )
+            # print("e: ", e)
+            self.controller.step(action="Done")
+            # dropping injection
+            obj_in_hand = False
+            for o in self.controller.last_event.metadata['objects']:
+                if o['isPickedUp'] == True:
+                    obj_in_hand = True
+                    break
+            add_failure = np.random.uniform()
+            if not drop_failure_injected and chosen_failure == 'drop' and obj_in_hand and add_failure > 0.5 and to_drop:
+                # drop action primitive
+                print("injected drop")
+                self.drop()
+                drop_failure_injected = True
+        robot_pos = self.controller.last_event.metadata['agent']['position']
+        self.look_at(target_pos=obj["position"])
+        self.controller.step(action="Done")
+        if to_drop:
+            return drop_failure_injected
+        else:
+            return True
+
+
+    def pick_up(self, obj_type, fail_execution=False, chosen_failure=None):
+        print("[INFO] Execute action: Picking up", obj_type)
+        obj_type_in_sim = obj_type
+        if obj_type in NAME_MAP:
+            obj_type_in_sim = NAME_MAP[obj_type]
+
+        if chosen_failure == "wrong_perception":
+            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+
+        # if the Sliced/Cracked object does not exist, then pick up the original object
+        # if the original object does not exist, then pick up the Sliced/Cracked object
+        obj_types = sorted([obj["objectType"] for obj in self.controller.last_event.metadata["objects"]])
+        if obj_type in OBJ_UNSLICED_MAP:
+            obj_unsliced_type = OBJ_UNSLICED_MAP[obj_type]
+            if obj_unsliced_type in obj_types and obj_type not in obj_types:
+                obj_type = obj_unsliced_type
+        elif obj_type in OBJ_SLICED_MAP:
+            obj_sliced_type = OBJ_SLICED_MAP[obj_type]
+            if obj_sliced_type in obj_types:
+                obj_type = obj_sliced_type
+
+        e = self.controller.last_event
+        objs = [obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type]
+        
+        # thor specific - to avoid picking up the largest slice (e.g. Lettuce_6_Slice_8 is smallest and Lettuce_6_Slice_1 is the largest)
+        if 'LettuceSliced' in obj_type or 'AppleSliced' in obj_type:
+            objs = sorted(objs, key=lambda x: int(x['name'].split('_')[-1])*-1)
+        if 'PotatoSliced' in obj_type:
+            objs = objs[2:]
+        if 'TomatoSliced' in obj_type:
+            objs = objs[4:]
+        if "EggCracked" in obj_type:
+            objs = ""
+        
+        if fail_execution == True or len(objs) == 0:
+            if len(objs) == 0:
+                print("Cannot find the target object to pick up")
+            return
+
+        # if navigation is required
+        if not objs[0]['visible'] and objs[0]['objectId'] in self.object_position_known.keys():
+            self.navigate_to_obj(objs[0]['objectType'])
+
+        if (chosen_failure == 'blocking' and taskUtil.failure_injection_params['src_obj_type'] == obj_type) \
+            and self.obj_is_blocked(obj_type) or (chosen_failure == "drop" and taskUtil.failure_added is True):
+            return
+        
+        for obj in objs:
+            obj_id = obj['objectId']
+            obj_pos = obj['position']
+            # look at object
+            robot_pos = self.controller.last_event.metadata['agent']['position']
+            self.look_at(target_pos=obj_pos)
+            e = self.controller.step(
+                action="PickupObject",
+                objectId=obj_id,
+                forceAction=False,
+                manualInteract=False
+            )
+            #print("PickUpObject: ", e)
+        self.controller.step(action="Done")
+        time.sleep(1)
+        
+    def dirty_obj(self, obj_type):
+        src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        e = self.controller.step(
+            action="DirtyObject",
+            objectId=src_obj["objectId"],
+            forceAction=True
+        )
+        print("DirtyObject: ", e)
+        self.controller.step(action="Done")
+
+
+    def fill_obj(self, obj_type, liquid_type):
+        """ Fill an object with liquid """
+        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        e = self.controller.step(
+            action="FillObjectWithLiquid",
+            objectId=obj['objectId'],
+            fillLiquid=liquid_type,
+            forceAction=True
+        )
+        print("FillWithLiquid: ", e)
+        self.controller.step(action="Done")
+        
+    def slice_obj(self, obj_type, fail_execution=False, chosen_failure=None):
+        print("[INFO] Execute action: Slicing", obj_type)
+        obj_type_in_sim = obj_type
+        if obj_type in NAME_MAP:
+            obj_type_in_sim = NAME_MAP[obj_type]
+
+        if chosen_failure == "wrong_perception":
+            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+
+        e = self.controller.last_event
+        if fail_execution:
+            return
+        
+        knife_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == 'Knife')
+        
+        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        obj_id = obj['objectId']
+        obj_pos = obj['position']
+
+        # if navigation is required
+        if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
+            navigate_to_obj(obj['objectType'])
+        
+        if knife_obj['isPickedUp']:
+            robot_pos = self.controller.last_event.metadata['agent']['position']
+            self.look_at(target_pos=obj_pos)
+            obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+            obj_id = obj['objectId']
+            e = self.controller.step(
+                action="SliceObject",
+                objectId=obj_id,
+                forceAction=False
+            )
+            self.controller.step(action="Done")
+
+    # Primitive 10
+    def crack_obj(self, obj_type, fail_execution=False, chosen_failure=None):
+        obj_type_in_sim = obj_type
+        if obj_type in NAME_MAP:
+            obj_type_in_sim = NAME_MAP[obj_type]
+
+        if chosen_failure == "wrong_perception":
+            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+
+        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        # skip the action if failure is injected or the object is not picked up by the robot
+        if fail_execution or not obj['isPickedUp']:
+            e = self.controller.last_event
+            return
+
+        obj_id = obj['objectId']
+        e = self.controller.step(
+            action="BreakObject",
+            objectId=obj_id,
+            forceAction=False
+        )
+        print("BreakObject: ", e)
+
+        # after cracking, the cracked object is dropped in thor. So, need to pick it up again
+        obj_types = sorted([obj["objectType"] for obj in self.controller.last_event.metadata["objects"]])
+        if obj_type in OBJ_SLICED_MAP:
+            obj_slice_type = OBJ_SLICED_MAP[obj_type]
+            if obj_slice_type in obj_types:
+                obj_type = obj_slice_type
+        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        obj_id = obj['objectId']
+        e = self.controller.step(
+                action="PickupObject",
+                objectId=obj_id,
+                forceAction=True,
+                manualInteract=False
+            )
+        print("PickUpObject (cracked): ", e)
+        self.controller.step(action="Done")
+        time.sleep(1)
+
+
+    def pour(self, src_obj_type, target_obj_type, fail_execution=False, chosen_failure=None):
+        print(f"[INFO] Execute action: Pouring liquid from {src_obj_type} to {target_obj_type}")
+        liquid_type = None
+        src_obj_type_in_sim = src_obj_type
+        if src_obj_type in NAME_MAP:
+            src_obj_type_in_sim = NAME_MAP[src_obj_type]
+        target_obj_type_in_sim = target_obj_type
+        if target_obj_type in NAME_MAP:
+            target_obj_type_in_sim = NAME_MAP[target_obj_type]
+
+        if chosen_failure == "wrong_perception":
+            if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                src_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            elif target_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                target_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+
+        target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
+        target_obj_id = target_obj['objectId']
+        src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == src_obj_type)
+        src_obj_id = src_obj['objectId']
+
+        # if navigation is required
+        if not target_obj['visible'] and target_obj['objectId'] in self.object_position_known.keys():
+            self.navigate_to_obj(target_obj['objectType'])
+
+        # if obj_in_hand is True and obj_in_hand has liquid
+        obj_in_hand = None
+        for obj in self.controller.last_event.metadata['objects']:
+            if obj['isPickedUp'] == True:
+                obj_in_hand = obj
+                break
+        
+        if obj_in_hand is not None and obj_in_hand["isFilledWithLiquid"] and src_obj_id == obj_in_hand['objectId']:
+            liquid_type = obj_in_hand['fillLiquid']
+
+            if fail_execution:
+                e = self.controller.last_event
+                return
+        
+            e = self.controller.step(
+                action="EmptyLiquidFromObject",
+                objectId=src_obj_id,
+                forceAction=False
+            )
+            e = self.controller.step(
+                action="FillObjectWithLiquid",
+                objectId=target_obj_id,
+                fillLiquid=liquid_type.lower(),
+                forceAction=False
+            )
+            print("FillWithLiquid: ", e)
+            self.controller.step(action="Done")
+
+        time.sleep(1)
+
+    def toggle_on(self, obj_type, fail_execution=False, chosen_failure=None):
+        print("[INFO] Execute action: Toggling on", obj_type)
+        e = self.controller.last_event
+        if chosen_failure == 'ambiguous_plan' and obj_type.split("-")[0] == taskUtil.failure_injection_params['ambi_obj_type']:
+            obj_type_in_sim = obj_type.split('-')[0]
+            if obj_type_in_sim in NAME_MAP:
+                obj_type_in_sim = NAME_MAP[obj_type_in_sim]
+        else:
+            obj_type_in_sim = obj_type
+            if obj_type in NAME_MAP:
+                obj_type_in_sim = NAME_MAP[obj_type]
+
+        if chosen_failure == "wrong_perception":
+            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+        
+        if fail_execution:
+            e = self.controller.last_event
+            return
+
+        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        obj_id = obj['objectId']
+
+        # if navigation is required
+        if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
+            self.navigate_to_obj(obj['objectType'], obj_id=obj['objectId'])
+        else:
+            # look at object
+            robot_pos = self.controller.last_event.metadata['agent']['position']
+            self.look_at(target_pos=obj['position'])
+        
+        # retrieve the stove knob corresponding to the chosen stove burner
+        if "StoveBurner" in obj_type:
+            for o in self.controller.last_event.metadata["objects"]:
+                if 'StoveKnob' in o['objectType'] and o['controlledObjects'] is not None \
+                        and o['controlledObjects'][0] == obj_id:
+                    obj_id = o['objectId']
+
+        execute_action = True
+        if obj_type == 'Television':
+            remote_control_obj = [obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == 'RemoteControl']
+            if len(remote_control_obj) > 0 and not remote_control_obj[0]['isPickedUp']:
+                execute_action = False
+    
+        if execute_action:
+            e = self.controller.step(
+                action="ToggleObjectOn",
+                objectId=obj_id,
+                forceAction=True
+            )
+            # print("ToggleObjectOn: ", e)
+        self.controller.step(action="Done")
+
+        # Post-processing for cleaning and filling up with water (need to do this as thor put_in primitive does not put the object directly below the faucet)
+        faucet_objs = [o for o in self.controller.last_event.metadata["objects"] if o["objectType"] == "Faucet"]
+        src_obj = next(o for o in self.controller.last_event.metadata["objects"] if o["objectId"] == obj['objectId'])
+        if src_obj['isToggled']:
+            # if single faucet:
+            if len(faucet_objs) == 1:
+                for obj in self.controller.last_event.metadata["objects"]:
+                    parentReceptacles = obj['parentReceptacles']
+                    if parentReceptacles is not None:
+                        for parent in parentReceptacles:
+                            # change state for object in sink
+                            if "Sink" in parent:
+                                e = self.controller.step(
+                                    action="CleanObject",
+                                    objectId=obj['objectId'],
+                                    forceAction=True
+                                )
+                                e = self.controller.step(
+                                    action="FillObjectWithLiquid",
+                                    objectId=obj['objectId'],
+                                    fillLiquid='water',
+                                    forceAction=True
+                                )
+            # if multiple faucets:
+            else:
+                src_obj_parent_receptacle = [p for p in src_obj['parentReceptacles'] if "SinkBasin" in p] 
+                for obj in self.controller.last_event.metadata["objects"]:
+                    parentReceptacles = obj['parentReceptacles']
+                    if parentReceptacles is not None:
+                        for parent in parentReceptacles:
+                            if parent in src_obj_parent_receptacle:
+                                e = self.controller.step(
+                                    action="CleanObject",
+                                    objectId=obj['objectId'],
+                                    forceAction=True
+                                )
+                                e = self.controller.step(
+                                    action="FillObjectWithLiquid",
+                                    objectId=obj['objectId'],
+                                    fillLiquid='water',
+                                    forceAction=True
+                                )
+
+
+    def toggle_off(self, obj_type, fail_execution=False, chosen_failure=None):
+        print(f"[INFO] Execute action: Toggling off", obj_type)
+        e = self.controller.last_event
+        obj_type_in_sim = obj_type
+        if obj_type in NAME_MAP:
+            obj_type_in_sim = NAME_MAP[obj_type]
+
+        if chosen_failure == "wrong_perception":
+            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
+                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+
+        if fail_execution:
+            e = self.controller.last_event
+            return
+        
+        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        obj_id = obj['objectId']
+        
+        # if navigation is required
+        if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
+            self.navigate_to_obj(obj['objectType'], obj_id=obj['objectId'])
+        else:
+            # look at object
+            robot_pos = self.controller.last_event.metadata['agent']['position']
+            self.look_at(target_pos=obj['position'])
+        
+        # retrieve the stove knob corresponding to the chosen stove burner
+        if "StoveBurner" in obj_type:
+            for o in self.controller.last_event.metadata["objects"]:
+                if 'StoveKnob' in o['objectType'] and o['controlledObjects'] is not None \
+                        and o['controlledObjects'][0] == obj_id:
+                    obj_id = o['objectId']
+
+        execute_action = True
+        # should hold remote control to open TV
+        if obj_type == 'Television':
+            remote_control_obj = [obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == 'RemoteControl']
+            if len(remote_control_obj) > 0 and not remote_control_obj[0]['isPickedUp']:
+                execute_action = False
+        
+        if execute_action:
+            e = self.controller.step(
+                action="ToggleObjectOff",
+                objectId=obj_id,
+                forceAction=False
+            )
+            # print("ToggleObjectOff: ", e)
+        self.controller.step(action="Done")
