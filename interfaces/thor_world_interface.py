@@ -1113,7 +1113,11 @@ class WorldInterface(BaseWorldInterface):
         for edge in remove_list:
             self.scene_graph.edges.pop(edge)
         self.scene_graph_nodes.remove(obj['name'])
-        self.scene_graph.total_nodes.remove(obj['name']) if obj['name'] in self.scene_graph.total_nodes else None
+        
+        for node in self.scene_graph.total_nodes:
+            if node is not None:
+                if obj['name'] == node.name:
+                    self.scene_graph.total_nodes.remove(node)
 
         time.sleep(1)
         
