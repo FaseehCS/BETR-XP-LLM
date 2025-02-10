@@ -687,7 +687,10 @@ class WorldInterface(BaseWorldInterface):
         return {'x': pos[0], 'y': pos[1], 'z': pos[2]}
 
     def dict_to_pos(self, pos):
-        return np.array([pos['x'], pos['y'], pos['z']])
+        try:
+            return np.array([pos['x'], pos['y'], pos['z']])
+        except:
+            return pos
 
     @staticmethod
     def get_2d_reachable_points(reachable_positions):
@@ -937,6 +940,7 @@ class WorldInterface(BaseWorldInterface):
 
     def navigate_to_obj(self, obj_type, to_drop=False, failure_injection_idx=0, obj_id=None, fail_execution=False, chosen_failure=None):
         print("[INFO] Execute action: Navigate to", obj_type)
+        obj_type = obj_type.split("|")[0]
         obj_type_in_sim = obj_type
         if obj_type in NAME_MAP:
             obj_type_in_sim = NAME_MAP[obj_type]
@@ -1018,6 +1022,7 @@ class WorldInterface(BaseWorldInterface):
 
 
     def pick_up(self, obj_type, fail_execution=False, chosen_failure=None):
+        obj_type = obj_type.split("|")[0]
         print("[INFO] Execute action: Picking up", obj_type)
         obj_type_in_sim = obj_type
         if obj_type in NAME_MAP:
@@ -1082,6 +1087,7 @@ class WorldInterface(BaseWorldInterface):
         time.sleep(1)
         
     def dirty_obj(self, obj_type):
+        obj_type = obj_type.split("|")[0]
         src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
         e = self.controller.step(
             action="DirtyObject",
@@ -1094,6 +1100,7 @@ class WorldInterface(BaseWorldInterface):
 
     def fill_obj(self, obj_type, liquid_type):
         """ Fill an object with liquid """
+        obj_type = obj_type.split("|")[0]
         obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
         e = self.controller.step(
             action="FillObjectWithLiquid",
@@ -1105,6 +1112,7 @@ class WorldInterface(BaseWorldInterface):
         self.controller.step(action="Done")
         
     def slice_obj(self, obj_type, fail_execution=False, chosen_failure=None):
+        obj_type = obj_type.split("|")[0]
         print("[INFO] Execute action: Slicing", obj_type)
         obj_type_in_sim = obj_type
         if obj_type in NAME_MAP:
@@ -1142,6 +1150,7 @@ class WorldInterface(BaseWorldInterface):
 
     # Primitive 10
     def crack_obj(self, obj_type, fail_execution=False, chosen_failure=None):
+        obj_type = obj_type.split("|")[0]
         obj_type_in_sim = obj_type
         if obj_type in NAME_MAP:
             obj_type_in_sim = NAME_MAP[obj_type]
@@ -1184,6 +1193,8 @@ class WorldInterface(BaseWorldInterface):
 
 
     def pour(self, src_obj_type, target_obj_type, fail_execution=False, chosen_failure=None):
+        src_obj_type = src_obj_type.split("|")[0]
+        target_obj_type = target_obj_type.split("|")[0]
         print(f"[INFO] Execute action: Pouring liquid from {src_obj_type} to {target_obj_type}")
         liquid_type = None
         src_obj_type_in_sim = src_obj_type
@@ -1239,6 +1250,7 @@ class WorldInterface(BaseWorldInterface):
         time.sleep(1)
 
     def toggle_on(self, obj_type, fail_execution=False, chosen_failure=None):
+        obj_type = obj_type.split("|")[0]
         print("[INFO] Execute action: Toggling on", obj_type)
         e = self.controller.last_event
         if chosen_failure == 'ambiguous_plan' and obj_type.split("-")[0] == taskUtil.failure_injection_params['ambi_obj_type']:
@@ -1336,6 +1348,7 @@ class WorldInterface(BaseWorldInterface):
 
 
     def toggle_off(self, obj_type, fail_execution=False, chosen_failure=None):
+        obj_type = obj_type.split("|")[0]
         print(f"[INFO] Execute action: Toggling off", obj_type)
         e = self.controller.last_event
         obj_type_in_sim = obj_type

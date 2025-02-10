@@ -983,14 +983,13 @@ class FillWithWater(ActionBehavior):
         self.world_interface = world_interface
         self.internal_state = self.FillWithWaterStates.INIT
         self.target_object = parameters["interact_object"]
-        preconditions = [NearRobot('', {"destination": "SinkBasin"}, world_interface),
-                         AtPos('', {"interact_object": self.target_object,
+        preconditions = [NearRobot('', {"destination": world_interface.object_dict["SinkBasin"]}, world_interface),
+                         AtPos('', {"target_object": self.target_object,
                                     "relation": "inside",
-                                    "relative_object": "SinkBasin"}, world_interface)]
+                                    "relative_object": world_interface.obj_dict["SinkBasin"]}, world_interface),
+                         Filled('', {"not": True,"interact_object": self.target_object}, world_interface),]
         postconditions = [Filled('', {"interact_object": self.target_object}, world_interface),
-                          Toggled('',{"interact_object": "Faucet"}, world_interface)]
-        if self.reciptacle is None:
-            self.reciptacle = "SinkBasin"
+                          Toggled('',{"interact_object": world_interface.object_dict["Faucet"]}, world_interface)]
         
         name = Pour.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
@@ -1037,10 +1036,10 @@ class Pour(ActionBehavior):
         self.world_interface = world_interface
         self.internal_state = self.PourStates.INIT
         self.target_object = parameters["interact_object"]
-        self.reciptacle = parameters["reciptacle"]
+        self.reciptacle = world_interface.obj_dict["SinkBasin"]
         preconditions = [Filled('', {"interact_object": self.target_object}, world_interface),
-                        NearRobot('', {"destination": parameters["reciptacle"]}, world_interface),
-                          Grasped('', {"interact_object": self.target_object}, world_interface),]
+                        NearRobot('', {"destination": world_interface.obj_dict["SinkBasin"]}, world_interface),
+                          Grasped('', {"target_object": self.target_object}, world_interface),]
         postconditions = [Filled('', {"not": True,"interact_object": self.target_object}, world_interface),
                           Cleaned('', {"interact_object": self.target_object}, world_interface),
                           ]
