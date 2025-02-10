@@ -379,7 +379,7 @@ class Filled(Behavior):
         return Behavior.common_string_rules(node_string, parameters)
     
     def update(self):
-        return self.check_negated(self.world_interface.is_filled(self.parameters["interact_object"]))
+        return self.check_negated(self.world_interface.is_filled(self.parameters["interact_object"], self.parameters["liquid"]))
 
 class Grasp(ActionBehavior):
     """
@@ -969,13 +969,14 @@ class FillWithWater(ActionBehavior):
         self.world_interface = world_interface
         self.internal_state = self.FillWithWaterStates.INIT
         self.target_object = parameters["interact_object"]
-        preconditions = [NearRobot('', {"destination": world_interface.object_dict["SinkBasin"]}, world_interface),
-                         AtPos('', {"target_object": self.target_object,
-                                    "relation": "on",
-                                    "relative_object": world_interface.object_dict["SinkBasin"]}, world_interface),
-                         Filled('', {"not": True,"interact_object": self.target_object}, world_interface),]
-        postconditions = [Filled('', {"interact_object": self.target_object}, world_interface),
-                          Toggled('',{"interact_object": world_interface.object_dict["Faucet"]}, world_interface)]
+        preconditions = [AtPos('', {"target_object": self.target_object,
+                                    "relation": "inside",
+                                    "relative_object": world_interface.object_dict["Sink"]}, world_interface),
+                        NearRobot('', {"destination": world_interface.object_dict["Sink"]}, world_interface),
+                        Filled('', {"not": True, "interact_object": self.target_object, "liquid": "any liquid"}, world_interface),]
+        postconditions = [Toggled('',{"interact_object": world_interface.object_dict["Faucet"]}, world_interface),
+                        Filled('', {"interact_object": self.target_object, "liquid": "water"}, world_interface),
+                        Cleaned('', {"interact_object": self.target_object}, world_interface)]
         
         name = FillWithWater.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
@@ -990,16 +991,69 @@ class FillWithWater(ActionBehavior):
     def initialise(self):
         self.internal_state = self.FillWithWaterStates.INIT
         ActionBehavior.initialise(self)
-        if self.world_interface.is_filled(self.target_object):
+        if self.world_interface.is_filled(self.target_object, "water"):
             self.success()
                 
     def check_for_success(self):
         """Check if object is on."""
-        if self.world_interface.is_filled(self.target_object):
+        if self.world_interface.is_filled(self.target_object, "water"):
             self.success()
             
     def execute(self):
         self.world_interface.toggle_on("Faucet")
+
+class FillWithCoffee(ActionBehavior):
+    """
+    Fill an object with liquid
+    """
+    skill_name = "Fill_With_Coffee"
+    description = "Fill a specified Mug with Coffee from the Coffee Machine"
+
+    @staticmethod
+    class FillWithCoffeeStates(IntEnum):
+        """Define the internal states"""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+        
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
+        self.world_interface = world_interface
+        self.internal_state = self.FillWithCoffeeStates.INIT
+        self.target_object = parameters["interact_object"]
+        preconditions = [Cleaned('', {"interact_object": self.target_object}, world_interface),
+                         Filled('', {"not": True,"interact_object": self.target_object, "liquid": "any liquid"}, world_interface),
+                         AtPos('', {"target_object": self.target_object,
+                                    "relation": "inside",
+                                    "relative_object": world_interface.object_dict["CoffeeMachine"]}, world_interface),
+                         NearRobot('', {"destination": world_interface.object_dict["CoffeeMachine"]}, world_interface),
+                         ]
+        postconditions = [Filled('', {"interact_object": self.target_object, "liquid": "coffee"}, world_interface),
+                          Toggled('',{"interact_object": world_interface.object_dict["CoffeeMachine"]}, world_interface)]
+        
+        name = FillWithCoffee.to_string(parameters)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "Fill " + extract_name(parameters["interact_object"]) + "with coffee"
+        node_string += "!"
+        return node_string
+    
+    def initialise(self):
+        self.internal_state = self.FillWithCoffeeStates.INIT
+        ActionBehavior.initialise(self)
+        if self.world_interface.is_filled(self.target_object, "coffee"):
+            self.success()
+                
+    def check_for_success(self):
+        """Check if object is on."""
+        if self.world_interface.is_filled(self.target_object, "coffee"):
+            self.success()
+            
+    def execute(self):
+        self.world_interface.toggle_on("CoffeeMachine")
 
 class Pour(ActionBehavior):
     """
@@ -1021,12 +1075,10 @@ class Pour(ActionBehavior):
         self.internal_state = self.PourStates.INIT
         self.target_object = parameters["interact_object"]
         self.reciptacle = world_interface.object_dict["SinkBasin"]
-        preconditions = [Filled('', {"interact_object": self.target_object}, world_interface),
+        preconditions = [Filled('', {"interact_object": self.target_object, "liquid": "any liquid"}, world_interface),
                         NearRobot('', {"destination": world_interface.object_dict["SinkBasin"]}, world_interface),
                           Grasped('', {"target_object": self.target_object}, world_interface),]
-        postconditions = [Filled('', {"not": True,"interact_object": self.target_object}, world_interface),
-                          Cleaned('', {"interact_object": self.target_object}, world_interface),
-                          ]
+        postconditions = [Filled('', {"not": True,"interact_object": self.target_object, "liquid": "any liquid"}, world_interface)]
         if self.reciptacle is None:
             self.reciptacle = "SinkBasin"
         
@@ -1061,4 +1113,4 @@ def get_condition_nodes():
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place, Navigate, Open, Close, ToggleOn, ToggleOff, Slice, Pour, FillWithWater]
+    return [Grasp, Place, Navigate, Open, Close, ToggleOn, ToggleOff, Slice, Pour, FillWithWater, FillWithCoffee]
