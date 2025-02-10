@@ -971,7 +971,7 @@ class FillWithWater(ActionBehavior):
         self.target_object = parameters["interact_object"]
         preconditions = [NearRobot('', {"destination": world_interface.object_dict["SinkBasin"]}, world_interface),
                          AtPos('', {"target_object": self.target_object,
-                                    "relation": "inside",
+                                    "relation": "on",
                                     "relative_object": world_interface.object_dict["SinkBasin"]}, world_interface),
                          Filled('', {"not": True,"interact_object": self.target_object}, world_interface),]
         postconditions = [Filled('', {"interact_object": self.target_object}, world_interface),

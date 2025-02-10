@@ -280,7 +280,7 @@ class WorldInterface(BaseWorldInterface):
                 self.graspable_objects.append(obj['objectId'])
                 if obj['isPickedUp']:
                     self.grasped_object = obj['objectId']
-                    self.scene_graph_nodes.append(obj['objectId'])
+                    self.scene_graph_nodes.append(obj['name'])
                     self.scene_graph.edges[(obj['name'],"robot_gripper")] = GraphEdge(obj['name'], "robot_gripper", edge_type="inside")
                     self.held_prev.append(obj['objectId'])
             if obj['moveable']:
@@ -308,7 +308,7 @@ class WorldInterface(BaseWorldInterface):
     def update_scene_graph(self, obj, event):
         if obj['objectId'] not in self.scene_graph_nodes:
             if obj['visible']:
-                self.scene_graph_nodes.append(obj['objectId'])
+                self.scene_graph_nodes.append(obj['name'])
                 self.object_position_known[obj['objectId']] = True
                 self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
                 node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
@@ -318,7 +318,7 @@ class WorldInterface(BaseWorldInterface):
                     self.scene_graph.add_node(node)
 
             elif obj['objectId'] in self.object_position_known.keys():
-                self.scene_graph_nodes.append(obj['objectId'])
+                self.scene_graph_nodes.append(obj['name'])
                 if self.object_position_known[obj['objectId']] == True:
                     self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
             else:
@@ -345,7 +345,7 @@ class WorldInterface(BaseWorldInterface):
                     self.scene_graph.add_node(node)
                 
         elif self.object_position_known[obj['objectId']] == False:
-            self.scene_graph_nodes.remove(obj['objectId'])
+            self.scene_graph_nodes.remove(obj['name'])
             remove_list = []
             for edge in self.scene_graph.edges.keys():
                 if obj['name'] in edge:
@@ -504,17 +504,16 @@ class WorldInterface(BaseWorldInterface):
                 self.put_on(target_object.split("|")[0], position.split("|")[0])
             if relation == 'inside':
                 self.put_in(target_object.split("|")[0], position.split("|")[0])
-
-            self.scene_graph.edges[(self.get_name(target_object),self.get_name(position))] = GraphEdge(self.get_name(target_object), self.get_name(position), relation)
                 
         else:
             position = self.pos_to_dict(position)
         if self.grasped_object == target_object:
             self.controller.step(action='PlaceObjectAtPoint', objectId=target_object, position=position)
             
-        if self.controller.last_event.metadata['lastActionSuccess']:
+        if self.get_grasped_object() == None:
             if (self.get_name(target_object),"robot_gripper") in self.scene_graph.edges.keys():
                 self.scene_graph.edges.pop((self.get_name(target_object),"robot_gripper"))
+                self.scene_graph_nodes.remove(self.get_name(target_object))
 
     def put_in(self, src_obj_type, target_obj_type, fail_execution=False, chosen_failure=None):
         print(f"[INFO] Execute action: Putting {src_obj_type} in {target_obj_type}")
@@ -1099,6 +1098,15 @@ class WorldInterface(BaseWorldInterface):
             )
             #print("PickUpObject: ", e)
         self.controller.step(action="Done")
+
+        remove_list = []
+        for edge in self.scene_graph.edges.keys():
+            if obj['name'] in edge[0]:
+                remove_list.append(edge)
+        for edge in remove_list:
+            self.scene_graph.edges.pop(edge)
+        self.scene_graph_nodes.remove(obj['name'])
+
         time.sleep(1)
         
     def dirty_obj(self, obj_type):
