@@ -281,7 +281,7 @@ class WorldInterface(BaseWorldInterface):
                 if obj['isPickedUp']:
                     self.grasped_object = obj['objectId']
                     self.scene_graph_nodes.append(obj['objectId'])
-                    self.scene_graph.edges[(obj['objectId'],"robot_gripper")] = GraphEdge(obj['name'], "robot_gripper", edge_type="inside")
+                    self.scene_graph.edges[(obj['name'],"robot_gripper")] = GraphEdge(obj['name'], "robot_gripper", edge_type="inside")
                     self.held_prev.append(obj['objectId'])
             if obj['moveable']:
                 self.movable_objects.append(obj['objectId'])                
@@ -332,11 +332,11 @@ class WorldInterface(BaseWorldInterface):
                 self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
 
                 remove_list = []
-                for edge in self.scene_graph.edges.keys():
-                    if obj['name'] in edge:
-                        remove_list.append(edge)
-                for edge in remove_list:
-                    self.scene_graph.edges.pop(edge)
+                # for edge in self.scene_graph.edges.keys():
+                #     if obj['name'] in edge:
+                #         remove_list.append(edge)
+                # for edge in remove_list:
+                #     self.scene_graph.edges.pop(edge)
 
                 node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
                 # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
@@ -346,9 +346,12 @@ class WorldInterface(BaseWorldInterface):
                 
         elif self.object_position_known[obj['objectId']] == False:
             self.scene_graph_nodes.remove(obj['objectId'])
+            remove_list = []
             for edge in self.scene_graph.edges.keys():
                 if obj['name'] in edge:
-                    self.scene_graph.edges.pop(edge)
+                    remove_list.append(edge)
+            for edge in remove_list:
+                self.scene_graph.edges.pop(edge)
 
     def calc_distance3d(self, target_object, position):
         """ Calculates the distance between target object and given position """
@@ -375,7 +378,7 @@ class WorldInterface(BaseWorldInterface):
             if obj['objectId'] == target_object:
                 return obj['position']
 
-    def is_near_robot(self, target_object, distance=1):
+    def is_near_robot(self, target_object, distance=1.15):
         """ Checks if object is within reach """
         self.robot_position = self.controller.last_event.metadata['agent']['position']
         self.object_positions[target_object] = self.dict_to_pos(self.get_position(target_object))
@@ -424,6 +427,16 @@ class WorldInterface(BaseWorldInterface):
     def is_clean(self, target_object):
         """ Check if an object is clean """
         return not self.get_obj(target_object)['isDirty']
+    
+    def get_grasped_object(self):
+        src_obj = None
+        for obj in self.controller.last_event.metadata["objects"]:
+                    if obj['isPickedUp']:
+                        src_obj = obj
+                        break
+        if src_obj is not None:
+            return src_obj['objectId']
+        return None
 
     def move(self, direction, magnitude=0.25):
         """ Move one step in the specified direction """
@@ -475,9 +488,9 @@ class WorldInterface(BaseWorldInterface):
         position = self.get_position(target_object)
         return self.controller.step(action="Teleport", position=position)
 
-    def pick_up(self, target_object):
-        """ Pick up an object """
-        self.controller.step(action='PickupObject', objectId=target_object, forceAction=True, manualInteract=False)
+    # def pick_up(self, target_object):
+    #     """ Pick up an object """
+    #     self.controller.step(action='PickupObject', objectId=target_object, forceAction=True, manualInteract=False)
 
     def drop(self):
         """ Drop the object held by the robot """
@@ -490,7 +503,9 @@ class WorldInterface(BaseWorldInterface):
             if relation == 'on':
                 self.put_on(target_object.split("|")[0], position.split("|")[0])
             if relation == 'inside':
-                self.put_in(target_object.split("|")[0], position.split("|")[0])    
+                self.put_in(target_object.split("|")[0], position.split("|")[0])
+
+            self.scene_graph.edges[(self.get_name(target_object),self.get_name(position))] = GraphEdge(self.get_name(target_object), self.get_name(position), relation)
                 
         else:
             position = self.pos_to_dict(position)

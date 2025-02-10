@@ -233,11 +233,11 @@ class Toggled(Behavior):
     description = "Check if object is turned on/off e.g. Toggled(Microwave), Toggled(CoffeeMachine), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
-        name = Opened.to_string(parameters)
+        name = Toggled.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, Opened):
+        if not isinstance(other, Toggled):
             # don't attempt to compare against unrelated types
             return False
         return super().__eq__(other)
@@ -424,11 +424,11 @@ class Grasp(ActionBehavior):
     def to_string(parameters):
         """ Creates a string """
         node_string = "grasp " + extract_name(parameters["target_object"])
-        relation = parameters.get("relation")
-        relative_object = extract_name(parameters.get("relative_object"))
-        if relation is not None and relative_object is not None:
-            node_string += " from " + relation
-            node_string += " " + relative_object
+        # relation = parameters.get("relation")
+        # relative_object = extract_name(parameters.get("relative_object"))
+        # if relation is not None and relative_object is not None:
+        #     node_string += " from " + relation
+        #     node_string += " " + relative_object
         node_string += "!"
         return node_string
 
@@ -541,7 +541,7 @@ class Place(ActionBehavior):
             parameters = parameters.copy() # Make sure not to change incoming
             parameters["target_object"] = '"grasped object"'
             parameters["relation"] = "on"
-            parameters["relative_object"] = self.world_interface.get_id("CounterTop")
+            parameters["relative_object"] = world_interface.get_id("CounterTop")
             postconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
         elif self.target_object == '"grasped object"':
             postconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
@@ -714,8 +714,6 @@ class Open(ActionBehavior):
         if self.target_object in self.world_interface.object_opened.keys():
             if self.world_interface.object_opened[self.target_object]:
                 self.success()
-        else:
-            self.failure()
                 
     def check_for_success(self):
         """Check if object is opened."""
@@ -763,8 +761,6 @@ class Close(ActionBehavior):
         if not self.target_object in self.world_interface.object_opened.keys():
             if self.world_interface.object_opened[self.target_object]:
                 self.success()
-        else:
-            self.failure()
                 
     def check_for_success(self):
         """Check if object is closed."""
@@ -792,8 +788,7 @@ class ToggleOn(ActionBehavior):
         self.world_interface = world_interface
         self.internal_state = self.ToggleOnStates.INIT
         self.target_object = parameters["interact_object"]
-        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
-                         NearRobot('', {"destination": self.target_object}, world_interface)]
+        preconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
         postconditions = [Toggled('', {"interact_object": self.target_object}, world_interface)]
         
         name = ToggleOn.to_string(parameters)
@@ -809,14 +804,12 @@ class ToggleOn(ActionBehavior):
     def initialise(self):
         self.internal_state = self.ToggleOnStates.INIT
         ActionBehavior.initialise(self)
-        if self.world_interface.is_toggled[self.target_object]:
+        if self.world_interface.is_toggled(self.target_object):
             self.success()
-        else:
-            self.failure()
                 
     def check_for_success(self):
         """Check if object is on."""
-        if self.world_interface.is_toggled[self.target_object]:
+        if self.world_interface.is_toggled(self.target_object):
             self.success()
             
     def execute(self):
@@ -840,8 +833,7 @@ class ToggleOff(ActionBehavior):
         self.world_interface = world_interface
         self.internal_state = self.ToggleOffStates.INIT
         self.target_object = parameters["interact_object"]
-        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface),
-                         NearRobot('', {"destination": self.target_object}, world_interface)]
+        preconditions = [NearRobot('', {"destination": self.target_object}, world_interface)]
         postconditions = [Toggled('', {"not": True, "interact_object": self.target_object}, world_interface)]
         
         name = ToggleOff.to_string(parameters)
@@ -857,14 +849,12 @@ class ToggleOff(ActionBehavior):
     def initialise(self):
         self.internal_state = self.ToggleOffStates.INIT
         ActionBehavior.initialise(self)
-        if not self.world_interface.is_toggled[self.target_object]:
+        if not self.world_interface.is_toggled(self.target_object):
             self.success()
-        else:
-            self.failure()
                 
     def check_for_success(self):
         """Check if object is off."""
-        if not self.world_interface.is_toggled[self.target_object]:
+        if not self.world_interface.is_toggled(self.target_object):
             self.success()
             
     def execute(self):
@@ -906,8 +896,6 @@ class Slice(ActionBehavior):
         ActionBehavior.initialise(self)
         if self.world_interface.is_sliced(self.target_object):
             self.success()
-        else:
-            self.failure()
                 
     def check_for_success(self):
         """Check if object is on."""
@@ -953,8 +941,6 @@ class Crack(ActionBehavior):
         ActionBehavior.initialise(self)
         if self.world_interface.is_cracked(self.target_object):
             self.success()
-        else:
-            self.failure()
                 
     def check_for_success(self):
         """Check if object is on."""
@@ -986,12 +972,12 @@ class FillWithWater(ActionBehavior):
         preconditions = [NearRobot('', {"destination": world_interface.object_dict["SinkBasin"]}, world_interface),
                          AtPos('', {"target_object": self.target_object,
                                     "relation": "inside",
-                                    "relative_object": world_interface.obj_dict["SinkBasin"]}, world_interface),
+                                    "relative_object": world_interface.object_dict["SinkBasin"]}, world_interface),
                          Filled('', {"not": True,"interact_object": self.target_object}, world_interface),]
         postconditions = [Filled('', {"interact_object": self.target_object}, world_interface),
                           Toggled('',{"interact_object": world_interface.object_dict["Faucet"]}, world_interface)]
         
-        name = Pour.to_string(parameters)
+        name = FillWithWater.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, vlm, max_ticks=500, verbose=verbose)
 
     @staticmethod
@@ -1004,14 +990,12 @@ class FillWithWater(ActionBehavior):
     def initialise(self):
         self.internal_state = self.FillWithWaterStates.INIT
         ActionBehavior.initialise(self)
-        if self.world_interface.is_Filled(self.target_object):
+        if self.world_interface.is_filled(self.target_object):
             self.success()
-        else:
-            self.failure()
                 
     def check_for_success(self):
         """Check if object is on."""
-        if self.world_interface.is_Filled(self.target_object):
+        if self.world_interface.is_filled(self.target_object):
             self.success()
             
     def execute(self):
@@ -1036,9 +1020,9 @@ class Pour(ActionBehavior):
         self.world_interface = world_interface
         self.internal_state = self.PourStates.INIT
         self.target_object = parameters["interact_object"]
-        self.reciptacle = world_interface.obj_dict["SinkBasin"]
+        self.reciptacle = world_interface.object_dict["SinkBasin"]
         preconditions = [Filled('', {"interact_object": self.target_object}, world_interface),
-                        NearRobot('', {"destination": world_interface.obj_dict["SinkBasin"]}, world_interface),
+                        NearRobot('', {"destination": world_interface.object_dict["SinkBasin"]}, world_interface),
                           Grasped('', {"target_object": self.target_object}, world_interface),]
         postconditions = [Filled('', {"not": True,"interact_object": self.target_object}, world_interface),
                           Cleaned('', {"interact_object": self.target_object}, world_interface),
@@ -1052,21 +1036,19 @@ class Pour(ActionBehavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = "Pour " + extract_name(parameters["interact_object"]) + "in" + extract_name(parameters["reciptacle"])
+        node_string = "Pour " + extract_name(parameters["interact_object"])
         node_string += "!"
         return node_string
     
     def initialise(self):
         self.internal_state = self.PourStates.INIT
         ActionBehavior.initialise(self)
-        if not self.world_interface.is_Filled(self.target_object):
+        if not self.world_interface.is_filled(self.target_object):
             self.success()
-        else:
-            self.failure()
                 
     def check_for_success(self):
         """Check if object is on."""
-        if not self.world_interface.is_Filled(self.target_object):
+        if not self.world_interface.is_filled(self.target_object):
             self.success()
             
     def execute(self):
