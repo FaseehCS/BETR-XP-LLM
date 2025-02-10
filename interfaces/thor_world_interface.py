@@ -420,6 +420,10 @@ class WorldInterface(BaseWorldInterface):
     def is_cracked(self, target_object):
         """ Check if an object is cracked """
         return self.get_obj(target_object)['isBroken']
+    
+    def is_clean(self, target_object):
+        """ Check if an object is clean """
+        return not self.get_obj(target_object)['isDirty']
 
     def move(self, direction, magnitude=0.25):
         """ Move one step in the specified direction """
