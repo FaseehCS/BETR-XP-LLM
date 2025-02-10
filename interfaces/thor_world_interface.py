@@ -332,11 +332,12 @@ class WorldInterface(BaseWorldInterface):
                 self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
 
                 remove_list = []
-                # for edge in self.scene_graph.edges.keys():
-                #     if obj['name'] in edge:
-                #         remove_list.append(edge)
-                # for edge in remove_list:
-                #     self.scene_graph.edges.pop(edge)
+                for edge in self.scene_graph.edges.keys():
+                    if obj['name'] in edge:
+                        remove_list.append(edge)
+                for edge in remove_list:
+                    self.scene_graph.edges.pop(edge)
+                self.scene_graph.total_nodes.pop(obj['name'])
 
                 node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
                 # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
@@ -352,6 +353,7 @@ class WorldInterface(BaseWorldInterface):
                     remove_list.append(edge)
             for edge in remove_list:
                 self.scene_graph.edges.pop(edge)
+            self.scene_graph.total_nodes.pop(obj['name'])
 
     def calc_distance3d(self, target_object, position):
         """ Calculates the distance between target object and given position """
@@ -416,9 +418,11 @@ class WorldInterface(BaseWorldInterface):
         """ Check if an object is opened """
         return self.get_obj(target_object)['isOpen']
     
-    def is_filled(self, target_object):
+    def is_filled(self, target_object, liquid="any liquid"):
         """ Check if an object is filled with liquid """
-        return self.get_obj(target_object)['isFilledWithLiquid']
+        if self.get_obj(target_object)['isFilledWithLiquid']:
+            return self.get_fill_liquid(target_object) == liquid or liquid == "any liquid"
+        return False
 
     def is_cracked(self, target_object):
         """ Check if an object is cracked """
@@ -427,6 +431,10 @@ class WorldInterface(BaseWorldInterface):
     def is_clean(self, target_object):
         """ Check if an object is clean """
         return not self.get_obj(target_object)['isDirty']
+    
+    def get_fill_liquid(self, target_object):
+        """ Get the liquid in an object """
+        return self.get_obj(target_object)['fillLiquid']
     
     def get_grasped_object(self):
         src_obj = None
@@ -502,12 +510,11 @@ class WorldInterface(BaseWorldInterface):
             # position = self.get_position(position)
             if relation == 'on':
                 self.put_on(target_object.split("|")[0], position.split("|")[0])
-            if relation == 'inside':
+            elif relation == 'inside':
                 self.put_in(target_object.split("|")[0], position.split("|")[0])
                 
         else:
             position = self.pos_to_dict(position)
-        if self.grasped_object == target_object:
             self.controller.step(action='PlaceObjectAtPoint', objectId=target_object, position=position)
             
         if self.get_grasped_object() == None:
@@ -1106,6 +1113,7 @@ class WorldInterface(BaseWorldInterface):
         for edge in remove_list:
             self.scene_graph.edges.pop(edge)
         self.scene_graph_nodes.remove(obj['name'])
+        self.scene_graph.total_nodes.remove(obj['name']) if obj['name'] in self.scene_graph.total_nodes else None
 
         time.sleep(1)
         
