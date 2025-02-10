@@ -1107,17 +1107,15 @@ class WorldInterface(BaseWorldInterface):
         self.controller.step(action="Done")
 
         remove_list = []
-        for edge in self.scene_graph.edges.keys():
-            if obj['name'] in edge[0]:
-                remove_list.append(edge)
-        for edge in remove_list:
-            self.scene_graph.edges.pop(edge)
-        self.scene_graph_nodes.remove(obj['name'])
+        # for edge in self.scene_graph.edges.keys():
+        #     if obj['name'] in edge[0]:
+        #         remove_list.append(edge)
+        # for edge in remove_list:
+        #     self.scene_graph.edges.pop(edge)
+        # self.scene_graph_nodes.remove(obj['name'])
         
-        for node in self.scene_graph.total_nodes:
-            if node is not None:
-                if obj['name'] == node.name:
-                    self.scene_graph.total_nodes.remove(node)
+        # for node in self.scene_graph.total_nodes:
+        #     self.scene_graph.total_nodes.remove(node)
 
         time.sleep(1)
         
