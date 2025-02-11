@@ -158,7 +158,7 @@ class WorldInterface(BaseWorldInterface):
         self.grid = np.mgrid[-5:5.1:gridSize, -5:5.1:gridSize].transpose(1,2,0)
         self.controller = Controller(
             agentMode="default",
-            visibilityDistance=1.0,
+            visibilityDistance=2.0,
             scene=scene,
             gridSize=self.gridSize,
             renderDepthImage=True,
@@ -193,14 +193,15 @@ class WorldInterface(BaseWorldInterface):
         self.failed_behavior = ''
         self.scene_graph.object_position_known = self.object_position_known
         self.scene_graph.object_positions = self.object_positions        
-        for obj in self.controller.last_event.metadata["objects"]:
-            self.update_scene_graph(obj, self.controller.last_event)
-        # self.get_feedback()
 
         for obj in known_objects:
             object_id = self.get_id(obj)
             self.object_dict[obj] = object_id
             self.object_position_known[object_id] = True
+
+        for obj in self.controller.last_event.metadata["objects"]:
+            self.update_scene_graph(obj, self.controller.last_event)
+        # self.get_feedback()
     
     def get_updated_image(self , file_path=None):
         """ Returns the current image of the last event"""
@@ -280,7 +281,7 @@ class WorldInterface(BaseWorldInterface):
                 self.graspable_objects.append(obj['objectId'])
                 if obj['isPickedUp']:
                     self.grasped_object = obj['objectId']
-                    self.scene_graph_nodes.append(obj['name'])
+                    # self.scene_graph_nodes.append(obj['name'])
                     self.scene_graph.edges[(obj['name'],"robot_gripper")] = GraphEdge(obj['name'], "robot_gripper", edge_type="inside")
                     self.held_prev.append(obj['objectId'])
             if obj['moveable']:
@@ -306,58 +307,43 @@ class WorldInterface(BaseWorldInterface):
         return True
     
     def update_scene_graph(self, obj, event):
-        if obj['objectId'] not in self.scene_graph_nodes:
-            if obj['visible']:
-                self.scene_graph_nodes.append(obj['name'])
-                self.object_position_known[obj['objectId']] = True
+        if 'Mug' in obj['name']:
+            print(obj['name'], obj['objectId'], obj['visible'], obj['position'], obj['rotation'])
+        if obj['visible']:
+            self.object_position_known[obj['objectId']] = True
+            if obj['name'] not in self.scene_graph_nodes:
                 self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
-                node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
-                # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
-                self.scene_graph.add_node_wo_edge(node)
-                if node is not None:
-                    self.scene_graph.add_node(node)
-
-            elif obj['objectId'] in self.object_position_known.keys():
-                self.scene_graph_nodes.append(obj['name'])
-                if self.object_position_known[obj['objectId']] == True:
-                    self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+                new_node = gen_node(obj, event, obj['objectId'] in self.held_prev)
+                if new_node is not None:
+                    self.scene_graph.add_node_wo_edge(new_node)
+                    self.scene_graph.add_node(new_node)
+                    self.scene_graph_nodes.append(obj['name'])
             else:
-                self.object_position_known[obj['objectId']] = False
-        elif obj['visible']:
-            if not self.object_position_known[obj['objectId']]:
-                self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
-                self.object_position_known[obj['objectId']] = True
+                if obj['moveable']:
+                    if abs(self.calc_distance3d(obj['objectId'], self.dict_to_pos(obj['position'])) > 0.02):
+                        self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+                        remove_list = []
+                        for edge in self.scene_graph.edges.keys():
+                            if obj['name'] in edge:
+                                remove_list.append(edge)
+                        for edge in remove_list:
+                            self.scene_graph.edges.pop(edge)
 
-            if self.calc_distance3d(obj['objectId'], self.dict_to_pos(obj['position'])) > 0.05:
-                self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
-
-                remove_list = []
-                for edge in self.scene_graph.edges.keys():
-                    if obj['name'] in edge:
-                        remove_list.append(edge)
-                for edge in remove_list:
-                    self.scene_graph.edges.pop(edge)
-                self.scene_graph.total_nodes.pop(obj['name'])
-
-                node = gen_node(obj, event, obj['objectId'] in self.held_prev) # Reflects Scene Graph
-                # node = GraphNode(obj['name'], object_id=obj['objectId']) # BETR-XP-LLM Scene Graph
-                self.scene_graph.add_node_wo_edge(node)
-                if node is not None:
-                    self.scene_graph.add_node(node)
-                
-        elif self.object_position_known[obj['objectId']] == False:
-            self.scene_graph_nodes.remove(obj['name'])
-            remove_list = []
-            for edge in self.scene_graph.edges.keys():
-                if obj['name'] in edge:
-                    remove_list.append(edge)
-            for edge in remove_list:
-                self.scene_graph.edges.pop(edge)
-            self.scene_graph.total_nodes.pop(obj['name'])
+                        for node in self.scene_graph.total_nodes:
+                            if node is not None:
+                                if node.name == obj['name']:
+                                    self.scene_graph.total_nodes.remove(node)
+                        for node in self.scene_graph.nodes:
+                            if node.name == obj['name']:
+                                self.scene_graph.nodes.remove(node)
+                        new_node = gen_node(obj, event)
+                        if new_node is not None:
+                            self.scene_graph.add_node_wo_edge(new_node)
+                            self.scene_graph.add_node(new_node)
 
     def calc_distance3d(self, target_object, position):
         """ Calculates the distance between target object and given position """
-        return np.linalg.norm(self.object_positions[target_object] - position)
+        return np.linalg.norm(self.object_positions[target_object] - position, 2)
 
     def get_id(self, obj_name):
         """ Get the object id from the object name """
