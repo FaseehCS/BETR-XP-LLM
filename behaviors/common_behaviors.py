@@ -487,7 +487,7 @@ class ActionBehavior(Behavior):
         """
         End hierarchical summary for the current behavior.
         """
-        self.world_interface.get_feedback()
+        # self.world_interface.get_feedback()
         path =  os.path.join(self.vlm_prompter.task_dir, "hierarchical_summary.txt")
         state = "Success" if self.state == pt.common.Status.SUCCESS else "Failure"
         postconditions = "Postconditions:"
