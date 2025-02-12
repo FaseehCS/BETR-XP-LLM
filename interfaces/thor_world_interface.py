@@ -195,13 +195,35 @@ class WorldInterface(BaseWorldInterface):
         self.scene_graph.object_positions = self.object_positions        
 
         for obj in known_objects:
-            object_id = self.get_id(obj)
-            self.object_dict[obj] = object_id
-            self.object_position_known[object_id] = True
+            object_instance = self.get_obj(obj)
+            self.object_dict[obj] = object_instance['objectId']
+            self.object_position_known[self.object_dict[obj]] = True
 
         for obj in self.controller.last_event.metadata["objects"]:
             self.update_scene_graph(obj, self.controller.last_event)
         # self.get_feedback()
+
+    def get_unity_name_map(self):
+        obj_list = ['CounterTop', 'StoveBurner', 'Cabinet', 'Faucet', 'Sink']
+        obj_rep_map = {}
+        for obj in self.controller.last_event.metadata["objects"]:
+            if obj["objectType"] in obj_list:
+                if obj["objectType"] in obj_rep_map:
+                    obj_rep_map[obj["objectType"]] += 1
+                else:
+                    obj_rep_map[obj["objectType"]] = 1
+        for key in obj_rep_map.keys():
+            if obj_rep_map[key] == 1:
+                obj_list.remove(key)
+        unity_name_map = {}
+        for obj_type in obj_list:
+            counter = 0
+            for obj in self.controller.last_event.metadata["objects"]:
+                if obj["objectType"] == obj_type:
+                    counter += 1
+                    unity_name_map[obj['name']] = obj_type + '-' + str(counter)
+        # print("unity_name_map: ", unity_name_map)
+        return unity_name_map
     
     def get_updated_image(self , file_path=None):
         """ Returns the current image of the last event"""
@@ -307,7 +329,7 @@ class WorldInterface(BaseWorldInterface):
         return True
     
     def update_scene_graph(self, obj, event):
-        if 'Mug' in obj['name']:
+        if 'Pot' in obj['name']:
             print(obj['name'], obj['objectId'], obj['visible'], obj['position'], obj['rotation'])
         if obj['visible']:
             self.object_position_known[obj['objectId']] = True
@@ -358,8 +380,19 @@ class WorldInterface(BaseWorldInterface):
 
     def get_obj(self, obj_id):
         """ Get the object from the object id """
-        return next(obj for obj in self.controller.last_event.metadata['objects'] if obj["objectId"] == obj_id)
+            #if there are multiple instances
+        for obj_unity_name, v in self.get_unity_name_map().items():
+            if v == obj_id:
+                target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["name"] == obj_unity_name)
+                return target_obj
 
+        if "|" in obj_id:
+           return next(obj for obj in self.controller.last_event.metadata['objects'] if obj["objectId"] == obj_id)
+        elif "_" in obj_id:
+           return next(obj for obj in self.controller.last_event.metadata['objects'] if obj["name"] == obj_id)
+        else:
+            return next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_id)
+ 
     def get_position(self, target_object):
         """ Get the position of an object """
         for obj in self.controller.last_event.metadata['objects']:
@@ -368,6 +401,7 @@ class WorldInterface(BaseWorldInterface):
 
     def is_near_robot(self, target_object, distance=1.15):
         """ Checks if object is within reach """
+        target_object = self.get_obj(target_object)["objectId"] if "|" not in target_object else target_object
         self.robot_position = self.controller.last_event.metadata['agent']['position']
         self.object_positions[target_object] = self.dict_to_pos(self.get_position(target_object))
         print("diff: ", self.calc_distance(target_object, self.dict_to_pos(self.robot_position)))
@@ -383,8 +417,8 @@ class WorldInterface(BaseWorldInterface):
         """ Check if object is at a specific location """
         target_object_name, relative_object_name = self.get_obj(target_object)['name'], self.get_obj(relative_object)['name']
         for edge in self.scene_graph.edges.keys():
-            if target_object_name.split("_")[0] in edge[0] and relative_object_name.split("_")[0] in edge[1]:
-                return relation == self.scene_graph.edges[edge].edge_type
+            if target_object_name.split("_")[0] in edge[0] and relative_object_name.split("_")[0] in edge[1] and relation == self.scene_graph.edges[edge].edge_type:
+                return True
         else:
             return False
 
@@ -495,9 +529,9 @@ class WorldInterface(BaseWorldInterface):
         if type(position) == str:
             # position = self.get_position(position)
             if relation == 'on':
-                self.put_on(target_object.split("|")[0], position.split("|")[0])
+                self.put_on(target_object, position)
             elif relation == 'inside':
-                self.put_in(target_object.split("|")[0], position.split("|")[0])
+                self.put_in(target_object, position)
                 
         else:
             position = self.pos_to_dict(position)
@@ -508,14 +542,11 @@ class WorldInterface(BaseWorldInterface):
                 self.scene_graph.edges.pop((self.get_name(target_object),"robot_gripper"))
                 self.scene_graph_nodes.remove(self.get_name(target_object))
 
-    def put_in(self, src_obj_type, target_obj_type, fail_execution=False, chosen_failure=None):
+    def put_in(self, src_obj_type, target_obj_type=None, fail_execution=False, chosen_failure=None):
         print(f"[INFO] Execute action: Putting {src_obj_type} in {target_obj_type}")
-        src_obj_type_in_sim = src_obj_type
-        if src_obj_type in NAME_MAP:
-            src_obj_type_in_sim= NAME_MAP[src_obj_type]
-        target_obj_type_in_sim = target_obj_type
-        if target_obj_type in NAME_MAP:
-            target_obj_type_in_sim = NAME_MAP[target_obj_type]
+        # src_obj_type_in_sim = src_obj_type
+        # src_obj= self.get_obj(src_obj_type)
+        # target_obj_type_in_sim = target_obj_type
         
         if chosen_failure == "wrong_perception":
             if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
@@ -530,7 +561,7 @@ class WorldInterface(BaseWorldInterface):
                 break
         if src_obj is None:
             print("The robot is not holding anything")
-        elif src_obj['objectType'] != src_obj_type:
+        elif src_obj['objectType'] not in src_obj_type:
             print(f"The robot is not holding {src_obj_type}")
         else:
             print("The robot is holding:", src_obj['objectId'], src_obj['objectType'])
@@ -540,10 +571,11 @@ class WorldInterface(BaseWorldInterface):
             return
 
         # thor-specific, put in sink sometimes does not work as expected
-        if target_obj_type == 'Sink':
+        if 'Sink' in target_obj_type:
             target_obj_type = 'SinkBasin'
-    
-        target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
+        target_obj = self.get_obj(target_obj_type)
+
+        # target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
         target_obj_id = target_obj['objectId']
         target_obj_pos = target_obj['position']
 
@@ -556,12 +588,12 @@ class WorldInterface(BaseWorldInterface):
         self.look_at(target_pos=target_obj_pos)
 
         # can only put one object in microwave
-        if target_obj_type == 'Microwave' and len(target_obj['receptacleObjectIds']) > 0:
+        if 'Microwave' in target_obj_type and len(target_obj['receptacleObjectIds']) > 0:
             print("Microwave already contains an object: ", target_obj['receptacleObjectIds'])
             e = self.controller.last_event
             return
         
-        if target_obj_type == 'Toaster' and target_obj['isToggled']:
+        if 'Toaster' in target_obj_type and target_obj['isToggled']:
             self.place_obj_in_small_receptacle(target_obj_pos)
         else:
             if src_obj:
@@ -583,17 +615,15 @@ class WorldInterface(BaseWorldInterface):
     
     def put_on(self, src_obj_type, target_obj_type, fail_execution=False, target_obj_id=None, chosen_failure=None):
         print(f"[INFO] Execute action: Putting {src_obj_type} on {target_obj_type}")
-        src_obj_type_in_sim = src_obj_type
-        if src_obj_type in NAME_MAP:
-            src_obj_type_in_sim = NAME_MAP[src_obj_type]
+        # if src_obj_type in NAME_MAP:
+        #     src_obj= self.get_obj(src_obj_type)
+
         if False: #chosen_failure == 'ambiguous_plan' and target_obj_type.split("-")[0] == taskUtil.failure_injection_params['ambi_obj_type']:
             target_obj_type_in_sim = target_obj_type.split('-')[0]
             if target_obj_type_in_sim in NAME_MAP:
                 target_obj_type_in_sim = NAME_MAP[target_obj_type_in_sim]
         else:
-            target_obj_type_in_sim = target_obj_type
-            if target_obj_type in NAME_MAP:
-                target_obj_type_in_sim = NAME_MAP[target_obj_type]
+            target_obj = self.get_obj(target_obj_type)
 
         if chosen_failure == "wrong_perception":
             if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
@@ -608,20 +638,20 @@ class WorldInterface(BaseWorldInterface):
                 break
         if src_obj is None:
             print("The robot is not holding anything")
-        elif src_obj['objectType'] != src_obj_type:
+        elif src_obj['objectType'] not in src_obj_type:
             print(f"The robot is not holding {src_obj_type}")
         else:
             print("The robot is holding: ", src_obj['objectId'], src_obj['objectType'])
 
         e = self.controller.last_event
-        if fail_execution or src_obj is None or src_obj['objectType'] != src_obj_type:
+        if fail_execution or src_obj is None or src_obj['objectType'] not in src_obj_type:
             return
 
-        if target_obj_id is None:
-            target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
+        # if target_obj_id is None:
+        #     target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
         # if the exact object instance is specified
-        else:
-            target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == target_obj_id)
+        # else:
+        #     target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == target_obj_id)
 
         target_obj_id = target_obj['objectId']
         target_obj_pos = target_obj['position']
@@ -662,7 +692,7 @@ class WorldInterface(BaseWorldInterface):
                     action="DropHandObject",
                     forceAction=False
                 )
-            if target_obj_type.split("-")[0] == 'CounterTop':
+            if 'CounterTop' in target_obj_type:
                 self.place_obj_on_large_receptacle(src_obj, target_obj_type, target_obj_id=target_obj_id)
         else:
             new_src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == src_obj['objectId'])
@@ -947,7 +977,7 @@ class WorldInterface(BaseWorldInterface):
 
     def navigate_to_obj(self, obj_type, to_drop=False, failure_injection_idx=0, obj_id=None, fail_execution=False, chosen_failure=None):
         print("[INFO] Execute action: Navigate to", obj_type)
-        obj_type = obj_type.split("|")[0]
+        # obj_type = self.get_obj(obj_type)["objectType"]
         obj_type_in_sim = obj_type
         if obj_type in NAME_MAP:
             obj_type_in_sim = NAME_MAP[obj_type]
@@ -961,10 +991,9 @@ class WorldInterface(BaseWorldInterface):
             e = self.controller.last_event
             return False
 
-        if obj_id is not None:
-            obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == obj_id)
-        else:
-            obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        # if obj_id is not None:
+        #     obj = self.get_obj(obj_id)
+        obj = self.get_obj(obj_type)
 
         # BFS search for poth
         reachable_positions = self.controller.step(action="GetReachablePositions").metadata['actionReturn']
@@ -1106,8 +1135,8 @@ class WorldInterface(BaseWorldInterface):
         time.sleep(1)
         
     def dirty_obj(self, obj_type):
-        obj_type = obj_type.split("|")[0]
-        src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        # obj_type = obj_type.split("|")[0]
+        src_obj = self.get_obj(obj_type)
         e = self.controller.step(
             action="DirtyObject",
             objectId=src_obj["objectId"],
@@ -1119,8 +1148,8 @@ class WorldInterface(BaseWorldInterface):
 
     def fill_obj(self, obj_type, liquid_type):
         """ Fill an object with liquid """
-        obj_type = obj_type.split("|")[0]
-        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        # obj_type = obj_type.split("|")[0]
+        obj = self.get_obj(obj_type)
         e = self.controller.step(
             action="FillObjectWithLiquid",
             objectId=obj['objectId'],
@@ -1131,11 +1160,7 @@ class WorldInterface(BaseWorldInterface):
         self.controller.step(action="Done")
         
     def slice_obj(self, obj_type, fail_execution=False, chosen_failure=None):
-        obj_type = obj_type.split("|")[0]
         print("[INFO] Execute action: Slicing", obj_type)
-        obj_type_in_sim = obj_type
-        if obj_type in NAME_MAP:
-            obj_type_in_sim = NAME_MAP[obj_type]
 
         if chosen_failure == "wrong_perception":
             if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
@@ -1147,19 +1172,18 @@ class WorldInterface(BaseWorldInterface):
         
         knife_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == 'Knife')
         
-        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        obj = self.get_obj(obj_type)
         obj_id = obj['objectId']
         obj_pos = obj['position']
+        obj_type = obj_id.split("|")[0]
 
         # if navigation is required
         if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
-            navigate_to_obj(obj['objectType'])
+            navigate_to_obj(obj['objectId'])
         
         if knife_obj['isPickedUp']:
             robot_pos = self.controller.last_event.metadata['agent']['position']
             self.look_at(target_pos=obj_pos)
-            obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
-            obj_id = obj['objectId']
             e = self.controller.step(
                 action="SliceObject",
                 objectId=obj_id,
@@ -1169,16 +1193,13 @@ class WorldInterface(BaseWorldInterface):
 
     # Primitive 10
     def crack_obj(self, obj_type, fail_execution=False, chosen_failure=None):
-        obj_type = obj_type.split("|")[0]
-        obj_type_in_sim = obj_type
-        if obj_type in NAME_MAP:
-            obj_type_in_sim = NAME_MAP[obj_type]
 
         if chosen_failure == "wrong_perception":
             if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
                 obj_type = taskUtil.failure_injection_params['wrong_obj_type']
 
-        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        obj = self.get_obj(obj_type)
+        obj_type = obj['objectType']
         # skip the action if failure is injected or the object is not picked up by the robot
         if fail_execution or not obj['isPickedUp']:
             e = self.controller.last_event
@@ -1198,8 +1219,6 @@ class WorldInterface(BaseWorldInterface):
             obj_slice_type = OBJ_SLICED_MAP[obj_type]
             if obj_slice_type in obj_types:
                 obj_type = obj_slice_type
-        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
-        obj_id = obj['objectId']
         e = self.controller.step(
                 action="PickupObject",
                 objectId=obj_id,
@@ -1212,16 +1231,7 @@ class WorldInterface(BaseWorldInterface):
 
 
     def pour(self, src_obj_type, target_obj_type, fail_execution=False, chosen_failure=None):
-        src_obj_type = src_obj_type.split("|")[0]
-        target_obj_type = target_obj_type.split("|")[0]
-        print(f"[INFO] Execute action: Pouring liquid from {src_obj_type} to {target_obj_type}")
         liquid_type = None
-        src_obj_type_in_sim = src_obj_type
-        if src_obj_type in NAME_MAP:
-            src_obj_type_in_sim = NAME_MAP[src_obj_type]
-        target_obj_type_in_sim = target_obj_type
-        if target_obj_type in NAME_MAP:
-            target_obj_type_in_sim = NAME_MAP[target_obj_type]
 
         if chosen_failure == "wrong_perception":
             if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
@@ -1229,10 +1239,14 @@ class WorldInterface(BaseWorldInterface):
             elif target_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
                 target_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
 
-        target_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == target_obj_type)
+        target_obj = self.get_obj(target_obj_type)
         target_obj_id = target_obj['objectId']
-        src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == src_obj_type)
+        target_obj_type = target_obj['objectType']
+        src_obj = self.get_obj(src_obj_type)
         src_obj_id = src_obj['objectId']
+        src_obj_type = src_obj['objectType']
+
+        print(f"[INFO] Execute action: Pouring liquid from {src_obj_type} to {target_obj_type}")
 
         # if navigation is required
         if not target_obj['visible'] and target_obj['objectId'] in self.object_position_known.keys():
@@ -1269,8 +1283,6 @@ class WorldInterface(BaseWorldInterface):
         time.sleep(1)
 
     def toggle_on(self, obj_type, fail_execution=False, chosen_failure=None):
-        obj_type = obj_type.split("|")[0]
-        print("[INFO] Execute action: Toggling on", obj_type)
         e = self.controller.last_event
         if chosen_failure == 'ambiguous_plan' and obj_type.split("-")[0] == taskUtil.failure_injection_params['ambi_obj_type']:
             obj_type_in_sim = obj_type.split('-')[0]
@@ -1289,8 +1301,12 @@ class WorldInterface(BaseWorldInterface):
             e = self.controller.last_event
             return
 
-        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        obj = self.get_obj(obj_type)
         obj_id = obj['objectId']
+
+        obj_type = obj_id.split("|")[0]
+        print("[INFO] Execute action: Toggling on", obj_type)
+
 
         # if navigation is required
         if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
@@ -1367,7 +1383,6 @@ class WorldInterface(BaseWorldInterface):
 
 
     def toggle_off(self, obj_type, fail_execution=False, chosen_failure=None):
-        obj_type = obj_type.split("|")[0]
         print(f"[INFO] Execute action: Toggling off", obj_type)
         e = self.controller.last_event
         obj_type_in_sim = obj_type
@@ -1382,8 +1397,9 @@ class WorldInterface(BaseWorldInterface):
             e = self.controller.last_event
             return
         
-        obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectType"] == obj_type)
+        obj = self.get_obj(obj_type)
         obj_id = obj['objectId']
+        obj_type = obj['objectType']
         
         # if navigation is required
         if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
