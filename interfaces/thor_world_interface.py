@@ -149,7 +149,7 @@ class SceneGraph(BaseSceneGraph):
 
 class WorldInterface(BaseWorldInterface):
 
-    def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], known_objects=[], gridSize=0.25, root_folder_path=''):
+    def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], known_objects=[], gridSize=0.25, root_folder_path='', chosen_failure = None, failure_injection = False , failure_injection_params = {}):  
         self.root_folder_path = root_folder_path
         video_path = os.path.join(root_folder_path, 'video.avi')
         self.video_color = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'XVID'), 4, (960, 960))
@@ -191,6 +191,10 @@ class WorldInterface(BaseWorldInterface):
         self.scene_changes = []
         self.error_message = ''
         self.failed_behavior = ''
+        self.failure_added = False
+        self.chosen_failure = chosen_failure
+        self.failure_injection = failure_injection
+        self.failure_injection_params = failure_injection_params
         self.scene_graph.object_position_known = self.object_position_known
         self.scene_graph.object_positions = self.object_positions        
 
@@ -549,10 +553,10 @@ class WorldInterface(BaseWorldInterface):
         # target_obj_type_in_sim = target_obj_type
         
         if chosen_failure == "wrong_perception":
-            if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                src_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
-            elif target_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                target_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if src_obj_type == self.failure_injection_params['correct_obj_type']:
+                src_obj_type = self.failure_injection_params['wrong_obj_type']
+            elif target_obj_type == self.failure_injection_params['correct_obj_type']:
+                target_obj_type = self.failure_injection_params['wrong_obj_type']
 
         src_obj = None
         for obj in self.controller.last_event.metadata["objects"]:
@@ -618,7 +622,7 @@ class WorldInterface(BaseWorldInterface):
         # if src_obj_type in NAME_MAP:
         #     src_obj= self.get_obj(src_obj_type)
 
-        if False: #chosen_failure == 'ambiguous_plan' and target_obj_type.split("-")[0] == taskUtil.failure_injection_params['ambi_obj_type']:
+        if False: #chosen_failure == 'ambiguous_plan' and target_obj_type.split("-")[0] == self.failure_injection_params['ambi_obj_type']:
             target_obj_type_in_sim = target_obj_type.split('-')[0]
             if target_obj_type_in_sim in NAME_MAP:
                 target_obj_type_in_sim = NAME_MAP[target_obj_type_in_sim]
@@ -626,10 +630,10 @@ class WorldInterface(BaseWorldInterface):
             target_obj = self.get_obj(target_obj_type)
 
         if chosen_failure == "wrong_perception":
-            if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                src_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
-            elif target_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                target_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if src_obj_type == self.failure_injection_params['correct_obj_type']:
+                src_obj_type = self.failure_injection_params['wrong_obj_type']
+            elif target_obj_type == self.failure_injection_params['correct_obj_type']:
+                target_obj_type = self.failure_injection_params['wrong_obj_type']
         
         src_obj = None
         for obj in self.controller.last_event.metadata["objects"]:
@@ -984,8 +988,8 @@ class WorldInterface(BaseWorldInterface):
         drop_failure_injected = False
 
         if chosen_failure == "wrong_perception":
-            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if obj_type == self.failure_injection_params['correct_obj_type']:
+                obj_type = self.failure_injection_params['wrong_obj_type']
 
         if fail_execution:
             e = self.controller.last_event
@@ -1065,8 +1069,8 @@ class WorldInterface(BaseWorldInterface):
             obj_type_in_sim = NAME_MAP[obj_type]
 
         if chosen_failure == "wrong_perception":
-            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if obj_type == self.failure_injection_params['correct_obj_type']:
+                obj_type = self.failure_injection_params['wrong_obj_type']
 
         # if the Sliced/Cracked object does not exist, then pick up the original object
         # if the original object does not exist, then pick up the Sliced/Cracked object
@@ -1102,8 +1106,8 @@ class WorldInterface(BaseWorldInterface):
         if not objs[0]['visible'] and objs[0]['objectId'] in self.object_position_known.keys():
             self.navigate_to_obj(objs[0]['objectType'])
 
-        if (chosen_failure == 'blocking' and taskUtil.failure_injection_params['src_obj_type'] == obj_type) \
-            and self.obj_is_blocked(obj_type) or (chosen_failure == "drop" and taskUtil.failure_added is True):
+        if (chosen_failure == 'blocking' and self.failure_injection_params['src_obj_type'] == obj_type) \
+            and self.obj_is_blocked(obj_type) or (chosen_failure == "drop" and self.failure_added is True):
             return
         
         for obj in objs:
@@ -1163,8 +1167,8 @@ class WorldInterface(BaseWorldInterface):
         print("[INFO] Execute action: Slicing", obj_type)
 
         if chosen_failure == "wrong_perception":
-            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if obj_type == self.failure_injection_params['correct_obj_type']:
+                obj_type = self.failure_injection_params['wrong_obj_type']
 
         e = self.controller.last_event
         if fail_execution:
@@ -1195,8 +1199,8 @@ class WorldInterface(BaseWorldInterface):
     def crack_obj(self, obj_type, fail_execution=False, chosen_failure=None):
 
         if chosen_failure == "wrong_perception":
-            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if obj_type == self.failure_injection_params['correct_obj_type']:
+                obj_type = self.failure_injection_params['wrong_obj_type']
 
         obj = self.get_obj(obj_type)
         obj_type = obj['objectType']
@@ -1234,10 +1238,10 @@ class WorldInterface(BaseWorldInterface):
         liquid_type = None
 
         if chosen_failure == "wrong_perception":
-            if src_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                src_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
-            elif target_obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                target_obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if src_obj_type == self.failure_injection_params['correct_obj_type']:
+                src_obj_type = self.failure_injection_params['wrong_obj_type']
+            elif target_obj_type == self.failure_injection_params['correct_obj_type']:
+                target_obj_type = self.failure_injection_params['wrong_obj_type']
 
         target_obj = self.get_obj(target_obj_type)
         target_obj_id = target_obj['objectId']
@@ -1258,6 +1262,7 @@ class WorldInterface(BaseWorldInterface):
             if obj['isPickedUp'] == True:
                 obj_in_hand = obj
                 break
+        
         
         if obj_in_hand is not None and obj_in_hand["isFilledWithLiquid"] and src_obj_id == obj_in_hand['objectId']:
             liquid_type = obj_in_hand['fillLiquid']
@@ -1284,7 +1289,7 @@ class WorldInterface(BaseWorldInterface):
 
     def toggle_on(self, obj_type, fail_execution=False, chosen_failure=None):
         e = self.controller.last_event
-        if chosen_failure == 'ambiguous_plan' and obj_type.split("-")[0] == taskUtil.failure_injection_params['ambi_obj_type']:
+        if chosen_failure == 'ambiguous_plan' and obj_type.split("-")[0] == self.failure_injection_params['ambi_obj_type']:
             obj_type_in_sim = obj_type.split('-')[0]
             if obj_type_in_sim in NAME_MAP:
                 obj_type_in_sim = NAME_MAP[obj_type_in_sim]
@@ -1294,8 +1299,8 @@ class WorldInterface(BaseWorldInterface):
                 obj_type_in_sim = NAME_MAP[obj_type]
 
         if chosen_failure == "wrong_perception":
-            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if obj_type == self.failure_injection_params['correct_obj_type']:
+                obj_type = self.failure_injection_params['wrong_obj_type']
         
         if fail_execution:
             e = self.controller.last_event
@@ -1390,8 +1395,8 @@ class WorldInterface(BaseWorldInterface):
             obj_type_in_sim = NAME_MAP[obj_type]
 
         if chosen_failure == "wrong_perception":
-            if obj_type == taskUtil.failure_injection_params['correct_obj_type']:
-                obj_type = taskUtil.failure_injection_params['wrong_obj_type']
+            if obj_type == self.failure_injection_params['correct_obj_type']:
+                obj_type = self.failure_injection_params['wrong_obj_type']
 
         if fail_execution:
             e = self.controller.last_event
