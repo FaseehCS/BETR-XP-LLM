@@ -362,7 +362,7 @@ class ActionBehavior(Behavior):
         self.counter = 0
         self.state = pt.common.Status.RUNNING
         self.hierarchical_summary()
-        self.precondition_check()
+        # self.precondition_check()
 
     @staticmethod
     def parse_parameters(node_descriptor):
@@ -392,7 +392,7 @@ class ActionBehavior(Behavior):
         }
         self.vlm_prompter.update_inputs(**updated_inputs)
 
-    def precondition_check(self):
+    def precondition_verifier_check(self):
         """
         Check preconditions using detection, identification, and correction.
         """
@@ -400,25 +400,51 @@ class ActionBehavior(Behavior):
         self.update_inputs()
 
         # Detection
-        detection_result = self.vlm_prompter.precondition_detection()
+        detection_result = self.vlm_prompter.precondition_verifier_detection()
 
         if "No" in detection_result:
             # Identification
-            identification_result = self.vlm_prompter.precondition_identification()
+            identification_result = self.vlm_prompter.precondition_verifier_identification()
 
             # Correction
-            correction_result = self.vlm_prompter.precondition_correction()
+            correction_result = self.vlm_prompter.precondition_verifier_correction()
 
             if self.verbose:
-                print(f"Precondition Check - Detection: {detection_result}")
-                print(f"Precondition Check - Identification: {identification_result}")
-                print(f"Precondition Check - Correction: {correction_result}")
+                print(f"Precondition Verifier Check - Detection: {detection_result}")
+                print(f"Precondition Verifier Check - Identification: {identification_result}")
+                print(f"Precondition Verifier Check - Correction: {correction_result}")
 
             return False  # Preconditions not satisfied after corrections
 
         return True  # Preconditions satisfied
 
-    def postcondition_check(self):
+    def precondition_suggestor_check(self):
+        """
+        Suggests new preconditions using detection, identification, and correction.
+        """
+        # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        detection_result = self.vlm_prompter.precondition_suggestor_detection()
+
+        if "Missing preconditions detected" in detection_result:
+            # Identification
+            identification_result = self.vlm_prompter.precondition_suggestor_identification()
+
+            # Correction
+            correction_result = self.vlm_prompter.precondition_suggestor_correction()
+
+            if self.verbose:
+                print(f"Precondition Suggestor Check - Detection: {detection_result}")
+                print(f"Precondition Suggestor Check - Identification: {identification_result}")
+                print(f"Precondition Suggestor Check - Correction: {correction_result}")
+
+            return False  # New preconditions suggested
+
+        return True  # No new preconditions are required
+    
+    def postcondition_verifier_check(self):
         """
         Check postconditions using detection, identification, and correction.
         """
@@ -426,23 +452,49 @@ class ActionBehavior(Behavior):
         self.update_inputs()
 
         # Detection
-        detection_result = self.vlm_prompter.postcondition_detection()
+        detection_result = self.vlm_prompter.postcondition_verifier_detection()
 
         if "No" in detection_result:
             # Identification
-            identification_result = self.vlm_prompter.postcondition_identification()
+            identification_result = self.vlm_prompter.postcondition_verifier_identification()
 
             # Correction
-            correction_result = self.vlm_prompter.postcondition_correction()
+            correction_result = self.vlm_prompter.postcondition_verifier_correction()
 
             if self.verbose:
-                print(f"Postcondition Check - Detection: {detection_result}")
-                print(f"Postcondition Check - Identification: {identification_result}")
-                print(f"Postcondition Check - Correction: {correction_result}")
+                print(f"Postcondition Verifier Check - Detection: {detection_result}")
+                print(f"Postcondition Verifier Check - Identification: {identification_result}")
+                print(f"Postcondition Verifier Check - Correction: {correction_result}")
 
             return False  # Postconditions not satisfied after corrections
 
         return True  # Postconditions satisfied
+
+    def postcondition_suggestor_check(self):
+        """
+        Suggests new postconditions using detection, identification, and correction.
+        """
+        # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        detection_result = self.vlm_prompter.postcondition_suggestor_detection()
+
+        if "No" in detection_result:
+            # Identification
+            identification_result = self.vlm_prompter.postcondition_suggestor_identification()
+
+            # Correction
+            correction_result = self.vlm_prompter.postcondition_suggestor_correction()
+
+            if self.verbose:
+                print(f"Postcondition Suggestor Check - Detection: {detection_result}")
+                print(f"Postcondition Suggestor Check - Identification: {identification_result}")
+                print(f"Postcondition Suggestor Check - Correction: {correction_result}")
+
+            return False  # New postconditions suggested
+
+        return True  # No new postconditions are required
     
     def update(self):
         self.check_for_success()
@@ -456,7 +508,7 @@ class ActionBehavior(Behavior):
                 self.world_interface.get_feedback()
                 self.check_for_success()
             self.end_hierarchical_summary()
-            self.postcondition_check()
+            # self.postcondition_check()
         else:
             ActionBehavior.update(self)
         return self.state
