@@ -146,7 +146,6 @@ class SceneGraph(BaseSceneGraph):
         if relation is not None:
             self.edges[(target_object, relative_object)] = GraphEdge(target_object, relative_object, relation)
 
-
 class WorldInterface(BaseWorldInterface):
 
     def __init__(self, scene='FloorPlan16', movable_objects=[], graspable_objects=[], known_objects=[], gridSize=0.25, root_folder_path='', chosen_failure = None, failure_injection = False , failure_injection_params = {}):  
@@ -200,7 +199,7 @@ class WorldInterface(BaseWorldInterface):
 
         for obj in known_objects:
             object_instance = self.get_obj(obj)
-            self.object_dict[obj] = object_instance['objectId']
+            self.object_dict[obj] = object_instance['name']
             self.object_position_known[self.object_dict[obj]] = True
 
         for obj in self.controller.last_event.metadata["objects"]:
@@ -304,18 +303,18 @@ class WorldInterface(BaseWorldInterface):
         for obj in event.metadata['objects']:
             self.update_scene_graph(obj, event) 
             if obj['pickupable']:
-                self.graspable_objects.append(obj['objectId'])
+                self.graspable_objects.append(obj['name'])
                 if obj['isPickedUp']:
-                    self.grasped_object = obj['objectId']
+                    self.grasped_object = obj['name']
                     # self.scene_graph_nodes.append(obj['name'])
                     self.scene_graph.edges[(obj['name'],"robot_gripper")] = GraphEdge(obj['name'], "robot_gripper", edge_type="inside")
-                    self.held_prev.append(obj['objectId'])
+                    self.held_prev.append(obj['name'])
             if obj['moveable']:
-                self.movable_objects.append(obj['objectId'])                
+                self.movable_objects.append(obj['name'])                
             if obj['toggleable']:
-                self.object_unlocked[obj['objectId']] = obj['isToggled']
+                self.object_unlocked[obj['name']] = obj['isToggled']
             if obj['openable']:
-                self.object_opened[obj['objectId']] = obj['isOpen']
+                self.object_opened[obj['name']] = obj['isOpen']
             # if obj['rotation']['x'] < 0.1 and obj['rotation']['z'] < 0.1:
             #     self.object_upright[obj['objectId']] = True
             # else:
@@ -336,18 +335,18 @@ class WorldInterface(BaseWorldInterface):
         if 'Pot' in obj['name']:
             print(obj['name'], obj['objectId'], obj['visible'], obj['position'], obj['rotation'])
         if obj['visible']:
-            self.object_position_known[obj['objectId']] = True
+            self.object_position_known[obj['name']] = True
             if obj['name'] not in self.scene_graph_nodes:
-                self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
-                new_node = gen_node(obj, event, obj['objectId'] in self.held_prev)
+                self.object_positions[obj['name']] = self.dict_to_pos(obj['position'])
+                new_node = gen_node(obj, event, obj['name'] in self.held_prev)
                 if new_node is not None:
                     self.scene_graph.add_node_wo_edge(new_node)
                     self.scene_graph.add_node(new_node)
                     self.scene_graph_nodes.append(obj['name'])
             else:
                 if obj['moveable']:
-                    if abs(self.calc_distance3d(obj['objectId'], self.dict_to_pos(obj['position'])) > 0.02):
-                        self.object_positions[obj['objectId']] = self.dict_to_pos(obj['position'])
+                    if abs(self.calc_distance3d(obj['name'], self.dict_to_pos(obj['position'])) > 0.02):
+                        self.object_positions[obj['name']] = self.dict_to_pos(obj['position'])
                         remove_list = []
                         for edge in self.scene_graph.edges.keys():
                             if obj['name'] in edge:
@@ -400,12 +399,12 @@ class WorldInterface(BaseWorldInterface):
     def get_position(self, target_object):
         """ Get the position of an object """
         for obj in self.controller.last_event.metadata['objects']:
-            if obj['objectId'] == target_object:
+            if obj['name'] == target_object:
                 return obj['position']
 
     def is_near_robot(self, target_object, distance=1.15):
         """ Checks if object is within reach """
-        target_object = self.get_obj(target_object)["objectId"] if "|" not in target_object else target_object
+        target_object = self.get_obj(target_object)["objectId"] if "_" not in target_object else target_object
         self.robot_position = self.controller.last_event.metadata['agent']['position']
         self.object_positions[target_object] = self.dict_to_pos(self.get_position(target_object))
         print("diff: ", self.calc_distance(target_object, self.dict_to_pos(self.robot_position)))
@@ -416,6 +415,10 @@ class WorldInterface(BaseWorldInterface):
             return True
         else:
             return False
+
+    def is_graspable(self, target_object):
+        """ True if object is graspable """
+        return self.get_obj(target_object)['pickupable']
 
     def object_at(self, target_object, relation, relative_object):
         """ Check if object is at a specific location """
@@ -467,7 +470,7 @@ class WorldInterface(BaseWorldInterface):
                         src_obj = obj
                         break
         if src_obj is not None:
-            return src_obj['objectId']
+            return src_obj['name']
         return None
 
     def move(self, direction, magnitude=0.25):
@@ -539,7 +542,7 @@ class WorldInterface(BaseWorldInterface):
                 
         else:
             position = self.pos_to_dict(position)
-            self.controller.step(action='PlaceObjectAtPoint', objectId=target_object, position=position)
+            self.controller.step(action='PlaceObjectAtPoint', objectId=self.get_obj(target_object)['objectId'], position=position)
             
         if self.get_grasped_object() == None:
             if (self.get_name(target_object),"robot_gripper") in self.scene_graph.edges.keys():
@@ -568,7 +571,7 @@ class WorldInterface(BaseWorldInterface):
         elif src_obj['objectType'] not in src_obj_type:
             print(f"The robot is not holding {src_obj_type}")
         else:
-            print("The robot is holding:", src_obj['objectId'], src_obj['objectType'])
+            print("The robot is holding:", src_obj['name'], src_obj['objectType'])
         
         if fail_execution or src_obj is None:
             e = self.controller.last_event
@@ -584,8 +587,8 @@ class WorldInterface(BaseWorldInterface):
         target_obj_pos = target_obj['position']
 
         # if navigation is required
-        if not target_obj['visible'] and target_obj['objectId'] in self.object_position_known.keys():
-            self.navigate_to_obj(target_obj['objectId'])
+        if not target_obj['visible'] and target_obj['name'] in self.object_position_known.keys():
+            self.navigate_to_obj(target_obj['name'])
 
         # look at object
         robot_pos = self.controller.last_event.metadata['agent']['position']
@@ -645,7 +648,7 @@ class WorldInterface(BaseWorldInterface):
         elif src_obj['objectType'] not in src_obj_type:
             print(f"The robot is not holding {src_obj_type}")
         else:
-            print("The robot is holding: ", src_obj['objectId'], src_obj['objectType'])
+            print("The robot is holding: ", src_obj['name'], src_obj['objectType'])
 
         e = self.controller.last_event
         if fail_execution or src_obj is None or src_obj['objectType'] not in src_obj_type:
@@ -659,8 +662,8 @@ class WorldInterface(BaseWorldInterface):
 
         target_obj_id = target_obj['objectId']
         target_obj_pos = target_obj['position']
-        if target_obj['objectId'] in self.object_position_known.keys():
-            self.navigate_to_obj(target_obj['objectId'])
+        if target_obj['name'] in self.object_position_known.keys():
+            self.navigate_to_obj(target_obj['name'])
         
         # look at object
         robot_pos = self.controller.last_event.metadata['agent']['position']
@@ -699,7 +702,7 @@ class WorldInterface(BaseWorldInterface):
             if 'CounterTop' in target_obj_type:
                 self.place_obj_on_large_receptacle(src_obj, target_obj_type, target_obj_id=target_obj_id)
         else:
-            new_src_obj = next(obj for obj in self.controller.last_event.metadata["objects"] if obj["objectId"] == src_obj['objectId'])
+            new_src_obj = self.get_obj(src_obj['objectId'])
             self.look_at(target_pos=new_src_obj['position'])
             
         time.sleep(1)
@@ -924,8 +927,8 @@ class WorldInterface(BaseWorldInterface):
         if not found_obj:
             for i in range(len(target_objs)):
                 _, target_obj = target_objs[i]
-                print("[INFO] Navigate to the closest target object:", target_obj['objectId'])
-                self.navigate_to_obj(target_obj['objectId'])
+                print("[INFO] Navigate to the closest target object:", target_obj['name'])
+                self.navigate_to_obj(target_obj['name'])
                 e = self.controller.step(
                     action="GetSpawnCoordinatesAboveReceptacle",
                     objectId=target_obj['objectId'],
@@ -1062,11 +1065,8 @@ class WorldInterface(BaseWorldInterface):
 
 
     def pick_up(self, obj_type, fail_execution=False, chosen_failure=None):
-        obj_type = obj_type.split("|")[0]
+        obj_type = self.get_obj(obj_type)["objectType"]
         print("[INFO] Execute action: Picking up", obj_type)
-        obj_type_in_sim = obj_type
-        if obj_type in NAME_MAP:
-            obj_type_in_sim = NAME_MAP[obj_type]
 
         if chosen_failure == "wrong_perception":
             if obj_type == self.failure_injection_params['correct_obj_type']:
@@ -1103,7 +1103,7 @@ class WorldInterface(BaseWorldInterface):
             return
 
         # if navigation is required
-        if not objs[0]['visible'] and objs[0]['objectId'] in self.object_position_known.keys():
+        if not objs[0]['visible'] and objs[0]['name'] in self.object_position_known.keys():
             self.navigate_to_obj(objs[0]['objectType'])
 
         if (chosen_failure == 'blocking' and self.failure_injection_params['src_obj_type'] == obj_type) \
@@ -1182,7 +1182,7 @@ class WorldInterface(BaseWorldInterface):
         obj_type = obj_id.split("|")[0]
 
         # if navigation is required
-        if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
+        if not obj['visible'] and obj['name'] in self.object_position_known.keys():
             navigate_to_obj(obj['objectId'])
         
         if knife_obj['isPickedUp']:
@@ -1253,7 +1253,7 @@ class WorldInterface(BaseWorldInterface):
         print(f"[INFO] Execute action: Pouring liquid from {src_obj_type} to {target_obj_type}")
 
         # if navigation is required
-        if not target_obj['visible'] and target_obj['objectId'] in self.object_position_known.keys():
+        if not target_obj['visible'] and target_obj['name'] in self.object_position_known.keys():
             self.navigate_to_obj(target_obj['objectType'])
 
         # if obj_in_hand is True and obj_in_hand has liquid
@@ -1314,7 +1314,7 @@ class WorldInterface(BaseWorldInterface):
 
 
         # if navigation is required
-        if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
+        if not obj['visible'] and obj['name'] in self.object_position_known.keys():
             self.navigate_to_obj(obj['objectType'], obj_id=obj['objectId'])
         else:
             # look at object
@@ -1345,7 +1345,7 @@ class WorldInterface(BaseWorldInterface):
 
         # Post-processing for cleaning and filling up with water (need to do this as thor put_in primitive does not put the object directly below the faucet)
         faucet_objs = [o for o in self.controller.last_event.metadata["objects"] if o["objectType"] == "Faucet"]
-        src_obj = next(o for o in self.controller.last_event.metadata["objects"] if o["objectId"] == obj['objectId'])
+        src_obj = self.get_obj(obj['objectId'])
         if src_obj['isToggled']:
             # if single faucet:
             if len(faucet_objs) == 1:
@@ -1407,7 +1407,7 @@ class WorldInterface(BaseWorldInterface):
         obj_type = obj['objectType']
         
         # if navigation is required
-        if not obj['visible'] and obj['objectId'] in self.object_position_known.keys():
+        if not obj['visible'] and obj['name'] in self.object_position_known.keys():
             self.navigate_to_obj(obj['objectType'], obj_id=obj['objectId'])
         else:
             # look at object
@@ -1436,3 +1436,93 @@ class WorldInterface(BaseWorldInterface):
             )
             # print("ToggleObjectOff: ", e)
         self.controller.step(action="Done")
+
+
+    def inject_failure(self, failure_type, failure_injection_params):
+        if failure_type == "occupied":
+            self.inject_occupied_failure(failure_injection_params)
+        # elif failure_type == "wrong_perception":
+        #     self.inject_wrong_perception_failure(failure_injection_params)
+        # elif failure_type == "drop":
+        #     self.inject_drop_failure(failure_injection_params)
+        # elif failure_type == "blocking":
+        #     self.inject_blocking_failure(failure_injection_params)
+        # else:
+        #     print(f"[ERROR] Unknown failure type: {failure_type}")
+
+    def inject_occupied_failure(self, failure_injection_params):
+        target_obj_type = failure_injection_params["target_obj_type"]
+        target_obj = self.get_obj(target_obj_type)
+        objectPoses = []
+        place_location = copy.deepcopy(target_obj['position'])
+        objs = self.controller.last_event.metadata["objects"]
+
+        for obj in objs:
+            obj_name = obj['name']
+            obj_type = obj['objectType']
+            pos = obj['position']
+            rot = obj['rotation']
+
+            if not obj['pickupable'] and not obj['moveable']:
+                continue
+            if obj_type == failure_injection_params['src_obj_type']:
+                pos = copy.deepcopy(place_location)
+                pos['x'] += failure_injection_params['disp_x']
+                pos['z'] += failure_injection_params['disp_z']
+                pos['y'] += failure_injection_params['disp_y']
+
+            temp_dict = {'objectName': obj_name, 'position': pos, 'rotation': rot}
+            objectPoses.append(temp_dict)
+
+        e = self.controller.step(
+            action='SetObjectPoses',
+            objectPoses=objectPoses,
+            placeStationary=False
+        )
+        print("SetObjectPoses: ", e)
+        self.controller.step(action="AdvancePhysicsStep", timeStep=0.01)
+        self.controller.step(action='Done')
+
+    # def inject_wrong_perception_failure(self, failure_injection_params):
+    #     print("[INFO] Injecting wrong perception failure")
+    #     self.failure_injection_params = failure_injection_params
+
+    # def inject_drop_failure(self, failure_injection_params):
+    #     print("[INFO] Injecting drop failure")
+    #     self.failure_injection = True
+    #     self.failure_injection_params = failure_injection_params
+
+    # def inject_blocking_failure(self, failure_injection_params):
+    #     print("[INFO] Injecting blocking failure")
+    #     target_obj_type = failure_injection_params["target_obj_type"]
+    #     target_obj = self.get_obj(target_obj_type)
+    #     objectPoses = []
+    #     block_location = copy.deepcopy(target_obj['position'])
+    #     objs = self.controller.last_event.metadata["objects"]
+
+    #     for obj in objs:
+    #         obj_name = obj['name']
+    #         obj_type = obj['objectType']
+    #         pos = obj['position']
+    #         rot = obj['rotation']
+
+    #         if not obj['pickupable'] and not obj['moveable']:
+    #             continue
+
+    #         if obj_type == failure_injection_params['blocking_obj_type']:
+    #             pos = copy.deepcopy(block_location)
+    #             pos['x'] += failure_injection_params['disp_x']
+    #             pos['z'] += failure_injection_params['disp_z']
+    #             pos['y'] += failure_injection_params['disp_y']
+
+    #         temp_dict = {'objectName': obj_name, 'position': pos, 'rotation': rot}
+    #         objectPoses.append(temp_dict)
+
+    #     e = self.controller.step(
+    #         action='SetObjectPoses',
+    #         objectPoses=objectPoses,
+    #         placeStationary=False
+    #     )
+    #     print("SetObjectPoses: ", e)
+    #     self.controller.step(action="AdvancePhysicsStep", timeStep=0.01)
+    #     self.controller.step(action='Done')
