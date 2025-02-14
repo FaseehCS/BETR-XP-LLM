@@ -26,7 +26,7 @@ class AtPos(Behavior):
     Check if object is at position
     """
     skill_name = "At_Pos"
-    description = "Check if object is at position e.g. At_Pos(Cup, countertop), At_Pos(Cup, microwave), etc."
+    description = "Check if object is at position e.g. At_Pos(Cup, on, countertop), At_Pos(Cup, inside, microwave), etc. - Relation: 'on' indicates placement on a surface. - Relation: 'inside' indicates containment within an object. For containers, if AtPos(target, relation='inside', relative_object) exists, the container is occupied."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = AtPos.to_string(parameters)
@@ -512,7 +512,7 @@ class Place(ActionBehavior):
     Place object on position
     """
     skill_name = "Place"
-    description = "Place an object with specified relation (at, on, inside) (e.g. Place Cup Inside microwave, place apple On countertop)."
+    description = "Place an object with specified relation (on, inside) (e.g. Place Cup inside microwave, place apple On countertop). - For 'on' relations: The target surface must be clear. - For 'inside' relations: The target container must not have another object already inside, as indicated by an existing AtPos condition with relation 'inside'."
 
     class PlaceStates(IntEnum):
         """Define the internal states during execution."""
@@ -597,7 +597,8 @@ class Place(ActionBehavior):
         return self.world_interface.get_grasped_object() != self.target_object
 
     def execute(self):
-            # self.precondition_check()
+            # self.precondition_verifier_check()
+            # self.precondition_suggestor_check()
             # if self.parameters["relation"] == "in":
             #     self.world_interface.put_in(self.target_object, self.parameters["relative_object"])
             # else:
