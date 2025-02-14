@@ -243,8 +243,8 @@ class VLMPrompter:
         return prompt
 
     # Precondition methods
-    def precondition_detection(self):
-        """Handles the detection functionality for preconditions."""
+    def precondition_verifier_detection(self):
+        """Handles the verifier detection functionality for preconditions."""
 
         params = self.prompts_json_file["preconditionverifier"]["template-detection"]
 
@@ -252,9 +252,19 @@ class VLMPrompter:
         query_file = os.path.join(self.task_dir, "preconditions_detection_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+    
+    def precondition_suggestor_detection(self):
+        """Handles the suggestor detection functionality for preconditions."""
 
-    def precondition_identification(self):
-        """Handles the identification functionality for preconditions."""
+        params = self.prompts_json_file["preconditionsuggestor"]["template-detection"]
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
+        query_file = os.path.join(self.task_dir, "preconditions_detection_query.txt")
+        response_file = os.path.join(self.task_dir, "preconditions_detection_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+    def precondition_verifier_identification(self):
+        """Handles the verifier identification functionality for preconditions."""
         
         params = self.prompts_json_file["preconditionverifier"]["template-identification"]
 
@@ -277,8 +287,32 @@ class VLMPrompter:
             print("No failure reason identified.")
         return response
 
-    def precondition_correction(self):
-        """Handles the correction functionality for preconditions."""
+    def precondition_suggestor_identification(self):
+        """Handles the suggestor identification functionality for preconditions."""
+        
+        params = self.prompts_json_file["preconditionsuggestor"]["template-identification"]
+
+        prompt = self._populate_prompt(params, include_failure_info=True)
+        query_file = os.path.join(self.task_dir, "preconditions_identification_query.txt")
+        response_file = os.path.join(self.task_dir, "preconditions_identification_response.txt")
+        response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+        failure_skill = self.extract_failure_skill(response)
+        failure_reason = self.extract_failure_reason(response)
+
+        if failure_skill:
+            self.write_file(params["failure-skill"], failure_skill)
+        else:
+            print("No failure skill identified.")
+
+        if failure_reason:
+            self.write_file(params["failure-reason"], failure_reason)
+        else:
+            print("No failure reason identified.")
+        return response
+    
+    def precondition_verifier_correction(self):
+        """Handles the verifier correction functionality for preconditions."""
 
         params = self.prompts_json_file["preconditionverifier"]["template-correction"]
         failure_skill = self.read_file(params["failure-skill"])
@@ -294,9 +328,26 @@ class VLMPrompter:
         response_file = os.path.join(self.task_dir, "preconditions_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
+    def precondition_suggestor_correction(self):
+        """Handles the suggestor correction functionality for preconditions."""
+
+        params = self.prompts_json_file["preconditionsuggestor"]["template-correction"]
+        failure_skill = self.read_file(params["failure-skill"])
+        failure_reason = self.read_file(params["failure-reason"])
+        if not failure_skill or not failure_reason:
+            raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
+
+        self.failure_skill = failure_skill
+        self.failure_reason = failure_reason
+        
+        prompt = self._populate_prompt(params, include_failure_info=True)
+        query_file = os.path.join(self.task_dir, "preconditions_correction_query.txt")
+        response_file = os.path.join(self.task_dir, "preconditions_correction_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
     # Postcondition methods
-    def postcondition_detection(self):
-        """Handles the detection functionality for postconditions."""
+    def postcondition_verifier_detection(self):
+        """Handles the verifier detection functionality for postconditions."""
         
         params = self.prompts_json_file["postconditionverifier"]["template-detection"]
 
@@ -305,8 +356,18 @@ class VLMPrompter:
         response_file = os.path.join(self.task_dir, "postconditions_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
-    def postcondition_identification(self):
-        """Handles the identification functionality for postconditions."""
+    def postcondition_suggestor_detection(self):
+        """Handles the suggestor detection functionality for postconditions."""
+        
+        params = self.prompts_json_file["postconditionsuggestor"]["template-detection"]
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
+        query_file = os.path.join(self.task_dir, "postconditions_detection_query.txt")
+        response_file = os.path.join(self.task_dir, "postconditions_detection_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+    def postcondition_verifier_identification(self):
+        """Handles the verifier identification functionality for postconditions."""
         
         params = self.prompts_json_file["postconditionverifier"]["template-identification"]
 
@@ -329,10 +390,52 @@ class VLMPrompter:
             print("No failure reason identified.")
         return response
 
-    def postcondition_correction(self):
-        """Handles the correction functionality for postconditions."""
+    def postcondition_suggestor_identification(self):
+        """Handles the suggestor identification functionality for postconditions."""
+        
+        params = self.prompts_json_file["postconditionsuggestor"]["template-identification"]
+
+        prompt = self._populate_prompt(params, include_failure_info=True)
+        query_file = os.path.join(self.task_dir, "postconditions_identification_query.txt")
+        response_file = os.path.join(self.task_dir, "postconditions_identification_response.txt")
+        response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+        failure_skill = self.extract_failure_skill(response)
+        failure_reason = self.extract_failure_reason(response)
+
+        if failure_skill:
+            self.write_file(params["failure-skill"], failure_skill)
+        else:
+            print("No failure skill identified.")
+
+        if failure_reason:
+            self.write_file(params["failure-reason"], failure_reason)
+        else:
+            print("No failure reason identified.")
+        return response
+
+    def postcondition_verifier_correction(self):
+        """Handles the verifier correction functionality for postconditions."""
     
         params = self.prompts_json_file["postconditionverifier"]["template-correction"]
+        failure_skill = self.read_file(params["failure-skill"])
+        failure_reason = self.read_file(params["failure-reason"])
+        if not failure_skill or not failure_reason:
+            raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
+
+        self.failure_skill = failure_skill
+        self.failure_reason = failure_reason
+
+
+        prompt = self._populate_prompt(params, include_failure_info=True)
+        query_file = os.path.join(self.task_dir, "postconditions_correction_query.txt")
+        response_file = os.path.join(self.task_dir, "postconditions_correction_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+    def postcondition_suggestor_correction(self):
+        """Handles the suggestor correction functionality for postconditions."""
+    
+        params = self.prompts_json_file["postconditionsuggestor"]["template-correction"]
         failure_skill = self.read_file(params["failure-skill"])
         failure_reason = self.read_file(params["failure-reason"])
         if not failure_skill or not failure_reason:
@@ -363,7 +466,7 @@ class VLMPrompter:
         
         params = self.prompts_json_file["proactivechecker"]["template-identification"]
 
-        prompt = self._populate_prompt(params, include_failure_info=False)
+        prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "proactive_identification_query.txt")
         response_file = os.path.join(self.task_dir, "proactive_identification_response.txt")
         response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
