@@ -25,6 +25,10 @@ class VLMPrompter:
         # Reset hierarchical summary
         with open(os.path.join(self.task_dir, hierarchical_summary), 'w') as f:
             f.write("")
+        with open(os.path.join(self.task_dir, "failure_skill.txt"), 'w') as f:
+            f.write("")
+        with open(os.path.join(self.task_dir, "failure_reason.txt"), 'w') as f:
+            f.write("")
 
         # Load prompts JSON file
         self.resources = resources
@@ -277,14 +281,15 @@ class VLMPrompter:
         failure_reason = self.extract_failure_reason(response)
 
         if failure_skill:
-            self.write_file(params["failure-skill"], failure_skill)
+            self.write_file(os.path.join(self.task_dir, "failure_skill.txt"), failure_skill)
         else:
             print("No failure skill identified.")
 
         if failure_reason:
-            self.write_file(params["failure-reason"], failure_reason)
+            self.write_file(os.path.join(self.task_dir, "failure_reason.txt"), failure_reason)
         else:
             print("No failure reason identified.")
+
         return response
 
     def precondition_suggestor_identification(self):
@@ -301,22 +306,23 @@ class VLMPrompter:
         failure_reason = self.extract_failure_reason(response)
 
         if failure_skill:
-            self.write_file(params["failure-skill"], failure_skill)
+            self.write_file(os.path.join(self.task_dir, "failure_skill.txt"), failure_skill)
         else:
             print("No failure skill identified.")
 
         if failure_reason:
-            self.write_file(params["failure-reason"], failure_reason)
+            self.write_file(os.path.join(self.task_dir, "failure_reason.txt"), failure_reason)
         else:
             print("No failure reason identified.")
+            
         return response
     
     def precondition_verifier_correction(self):
         """Handles the verifier correction functionality for preconditions."""
 
         params = self.prompts_json_file["preconditionverifier"]["template-correction"]
-        failure_skill = self.read_file(params["failure-skill"])
-        failure_reason = self.read_file(params["failure-reason"])
+        failure_skill = self.read_file(os.path.join(self.task_dir, "failure_skill.txt"))
+        failure_reason = self.read_file(os.path.join(self.task_dir, "failure_reason.txt"))
         if not failure_skill or not failure_reason:
             raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
 
@@ -332,8 +338,8 @@ class VLMPrompter:
         """Handles the suggestor correction functionality for preconditions."""
 
         params = self.prompts_json_file["preconditionsuggestor"]["template-correction"]
-        failure_skill = self.read_file(params["failure-skill"])
-        failure_reason = self.read_file(params["failure-reason"])
+        failure_skill = self.read_file(os.path.join(self.task_dir, "failure_skill.txt"))
+        failure_reason = self.read_file(os.path.join(self.task_dir, "failure_reason.txt"))
         if not failure_skill or not failure_reason:
             raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
 
@@ -380,12 +386,12 @@ class VLMPrompter:
         failure_reason = self.extract_failure_reason(response)
 
         if failure_skill:
-            self.write_file(params["failure-skill"], failure_skill)
+            self.write_file(os.path.join(self.task_dir, "failure_skill.txt"), failure_skill)
         else:
             print("No failure skill identified.")
 
         if failure_reason:
-            self.write_file(params["failure-reason"], failure_reason)
+            self.write_file(os.path.join(self.task_dir, "failure_reason.txt"), failure_reason)
         else:
             print("No failure reason identified.")
         return response
@@ -404,12 +410,12 @@ class VLMPrompter:
         failure_reason = self.extract_failure_reason(response)
 
         if failure_skill:
-            self.write_file(params["failure-skill"], failure_skill)
+            self.write_file(os.path.join(self.task_dir, "failure_skill.txt"), failure_skill)
         else:
             print("No failure skill identified.")
 
         if failure_reason:
-            self.write_file(params["failure-reason"], failure_reason)
+            self.write_file(os.path.join(self.task_dir, "failure_reason.txt"), failure_reason)
         else:
             print("No failure reason identified.")
         return response
@@ -418,8 +424,8 @@ class VLMPrompter:
         """Handles the verifier correction functionality for postconditions."""
     
         params = self.prompts_json_file["postconditionverifier"]["template-correction"]
-        failure_skill = self.read_file(params["failure-skill"])
-        failure_reason = self.read_file(params["failure-reason"])
+        failure_skill = self.read_file(os.path.join(self.task_dir, "failure_skill.txt"))
+        failure_reason = self.read_file(os.path.join(self.task_dir, "failure_reason.txt"))
         if not failure_skill or not failure_reason:
             raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
 
@@ -436,8 +442,8 @@ class VLMPrompter:
         """Handles the suggestor correction functionality for postconditions."""
     
         params = self.prompts_json_file["postconditionsuggestor"]["template-correction"]
-        failure_skill = self.read_file(params["failure-skill"])
-        failure_reason = self.read_file(params["failure-reason"])
+        failure_skill = self.read_file(os.path.join(self.task_dir, "failure_skill.txt"))
+        failure_reason = self.read_file(os.path.join(self.task_dir, "failure_reason.txt"))
         if not failure_skill or not failure_reason:
             raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
 
@@ -475,12 +481,12 @@ class VLMPrompter:
         failure_reason = self.extract_failure_reason(response)
 
         if failure_skill:
-            self.write_file(params["failure-skill"], failure_skill)
+            self.write_file(os.path.join(self.task_dir, "failure_skill.txt"), failure_skill)
         else:
             print("No failure skill identified.")
 
         if failure_reason:
-            self.write_file(params["failure-reason"], failure_reason)
+            self.write_file(os.path.join(self.task_dir, "failure_reason.txt"), failure_reason)
         else:
             print("No failure reason identified.")
         return response
@@ -489,8 +495,8 @@ class VLMPrompter:
         """Handles the correction functionality for proactive checking."""
         
         params = self.prompts_json_file["proactivechecker"]["template-correction"]
-        failure_skill = self.read_file(params["failure-skill"])
-        failure_reason = self.read_file(params["failure-reason"])
+        failure_skill = self.read_file(os.path.join(self.task_dir, "failure_skill.txt"))
+        failure_reason = self.read_file(os.path.join(self.task_dir, "failure_reason.txt"))
         if not failure_skill or not failure_reason:
             raise ValueError("Missing failure skill or reason. Ensure identification is run first.")
 
