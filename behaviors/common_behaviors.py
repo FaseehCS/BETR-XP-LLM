@@ -521,7 +521,7 @@ class ActionBehavior(Behavior):
         preconditions = "Preconditions:"
         for precondition in self.preconditions:
             # status = preconditions.status.name
-            preconditions += f" {precondition.name},".replace("~", "not ")
+            preconditions += f" {precondition.name},"
         Timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         summary = f"Timestamp:{Timestamp} | Executing skill: {self.name} | {preconditions}\n"
         with open(path, "a") as file:
@@ -532,7 +532,7 @@ class ActionBehavior(Behavior):
 
         postconditions = ""
         for postcondition in self.postconditions:
-            postconditions += f" {postcondition.name},".replace("~", "not ").replace("?", "")
+            postconditions += f" {postcondition.name},"
         self.vlm_prompter.skill_postconditions = postconditions
             
     def end_hierarchical_summary(self):
@@ -545,7 +545,7 @@ class ActionBehavior(Behavior):
         postconditions = "Postconditions:"
         for postcondition in self.postconditions:
             # status = preconditions.status.name
-            postconditions += f" {postcondition.name},".replace("~", "not ").replace("?", "")
+            postconditions += f" {postcondition.name},"
         Timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         summary = f"Timestamp:{Timestamp} | Completed skill: {self.name} ({state}) | {postconditions}\n"
         with open(path, "a") as file:
