@@ -10,7 +10,7 @@ import torch
 torch.set_grad_enabled(False)
 torch.manual_seed(0)
 
-from reflect.main.scene_graph import SceneGraph as BaseSceneGraph
+from reflect.main.scene_graph import SceneGraph
 from reflect.main.scene_graph import Node as GraphNode
 from reflect.main.scene_graph import Edge as GraphEdge
 from reflect.main.action_primitives import *

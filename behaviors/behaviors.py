@@ -258,7 +258,7 @@ class Grasp(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
 
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         name = Grasp.to_string(parameters)
         self.target_object = None
         self.grasp_position = None
@@ -277,7 +277,7 @@ class Grasp(ActionBehavior):
                                               "target_object": parameters["target_object"],
                                               "relation": relation,
                                               "relative_object": relative_object}, world_interface)]
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -361,7 +361,7 @@ class Grasp(ActionBehavior):
             self.calc_approach_position()
 
             open_gripper_program = self.world_interface.get_open_gripper_program(no_wait=True)
-            approach_program = self.world_interface.move_cfree(self.approach_position, self.orientation)
+            approach_program = self.world_interface.move_joint(self.approach_position, self.orientation)
             if approach_program is None:
                 return self.failure()
             positioning_program = self.world_interface.move_linear(self.grasp_position, self.orientation, self.target_object)
@@ -414,7 +414,7 @@ class Place(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
 
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         self.release_position = None
         self.approach_position = None
         self.orientation = None
@@ -438,7 +438,7 @@ class Place(ActionBehavior):
         elif self.target_object == '"grasped object"':
             postconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
         name = Place.to_string(parameters)
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -500,7 +500,7 @@ class Place(ActionBehavior):
                 return self.failure()
             self.calc_place_approach_position()
 
-            approach_program = self.world_interface.move_cfree(self.approach_position, self.orientation)
+            approach_program = self.world_interface.move_joint(self.approach_position, self.orientation)
             if approach_program is None:
                 return self.failure()
             positioning_program = self.world_interface.move_linear(self.release_position, self.orientation,
@@ -573,7 +573,7 @@ class MoveHome(ActionBehavior):
         WAITING_FOR_STOP = 2
         WAITING_FOR_START = 3
         RUNNING = 4
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         name = MoveHome.to_string(parameters)
         self.home_position = [0.45, -0.2, 0.2]
         self.internal_state = self.MoveHomeStates.INIT
@@ -582,7 +582,7 @@ class MoveHome(ActionBehavior):
             postconditions = [LocationKnown('', {"not": False, "target_object": parameters.get("target_object")}, world_interface)]
         else:
             postconditions = []
-        super().__init__(name, parameters, world_interface, [], postconditions, max_ticks=500, verbose=verbose)
+        super().__init__(name, parameters, world_interface, [], postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
 
     @staticmethod
     def to_string(_parameters):
@@ -610,7 +610,7 @@ class MoveHome(ActionBehavior):
         if self.internal_state == self.MoveHomeStates.INIT:
             self.world_interface.stop()
             self.internal_state = self.MoveHomeStates.WAITING_FOR_STOP
-            movement_program = self.world_interface.move_cfree(self.home_position)
+            movement_program = self.world_interface.move_linear(self.home_position)
             if movement_program is None:
                 return self.failure()
 
@@ -638,7 +638,7 @@ class Flip(Grasp, Place):
         """Define the internal states during execution."""
         GRASPING = 1
         PLACING = 2
-    def __init__(self, name, parameters, world_interface, verbose=False): # pylint: disable=super-init-not-called
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False): # pylint: disable=super-init-not-called
         name = Flip.to_string(parameters)
         self.target_object = None
         self.grasp_position = None
@@ -720,13 +720,13 @@ class OpenCentrifuge(ActionBehavior):
         WAITING_FOR_START = 3
         RUNNING = 4
 
-    def __init__(self, name, parameters, world_interface, verbose=False):
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         name = OpenCentrifuge.to_string(parameters)
         
         preconditions = []
         postconditions = [Opened('', {"target_object": '"centrifuge"'}, world_interface)]
         
-        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -781,7 +781,7 @@ class OpenCentrifuge(ActionBehavior):
                 [0.5, 0.18071, 0.329], np.array([0.191354, -0.705907, 0.677261, 0.0799752]), None, True)
             retract_program = self.world_interface.move_joint(
                 [0.5, 0.12771, 0.377], np.array([0.245167, -0.695143, 0.649404, 0.186936]), None, True)
-            home_program = self.world_interface.move_cfree(
+            home_program = self.world_interface.move_linear(
                 [0.5, -0.2, 0.35], np.array([0, 0.707107, -0.707107, 0]))
 
             self.full_placing_program = self.world_interface.finalize_program(open_gripper_program +
@@ -818,4 +818,4 @@ def get_condition_nodes():
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place, MoveHome, Flip, OpenCentrifuge]
+    return [Grasp, Place, MoveHome, Flip]
