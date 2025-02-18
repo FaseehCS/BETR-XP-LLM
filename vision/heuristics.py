@@ -19,7 +19,7 @@ import numpy as np
 from matplotlib import pyplot as plt 
 from vision.kinect_camera import KinectCamera
 import vision.perception_utils as utils
-import transforms3d as tf
+# import transforms3d as tf
 
 def get_cube_pose(
     points_3D: list[np.ndarray],

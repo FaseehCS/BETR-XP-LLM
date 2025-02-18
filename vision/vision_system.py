@@ -38,17 +38,17 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 import torch
 import torchvision
-from mmengine.config import Config
-from mmengine.dataset import Compose
-from mmdet.apis import init_detector
-from mmdet.utils import get_test_pipeline_cfg
+# from mmengine.config import Config
+# from mmengine.dataset import Compose
+# from mmdet.apis import init_detector
+# from mmdet.utils import get_test_pipeline_cfg
 
-import supervision as sv
+# import supervision as sv
 import PIL.Image
-from nanosam.utils.predictor import Predictor
+# from nanosam.utils.predictor import Predictor
 from vision.kinect_camera import KinectCamera
 import vision.perception_utils as utils
-import transforms3d
+# import transforms3d
 import math
 import vision.heuristics as heur
 

@@ -15,7 +15,7 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import vision.k4a as k4a
-import imageio
+# import imageio
 import matplotlib.pyplot as plt
 import typing
 import numpy as np
@@ -148,7 +148,7 @@ class KinectCamera(CameraBase):
         depth_img = depth_img.astype(float)
         
         # save images
-        imageio.imsave("./cube_images/rgb.png", rgb_img_cropped)
+        # imageio.imsave("./cube_images/rgb.png", rgb_img_cropped)
 
         return rgb_img_cropped, depth_img, cropped_depth_img
 

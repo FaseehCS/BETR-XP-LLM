@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import pipeline_pb2 as pipeline__pb2
+import vision.pipeline_pb2 as pipeline__pb2
 
 class ImageModelPipelineStub(object):
     """Service definition

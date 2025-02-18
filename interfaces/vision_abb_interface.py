@@ -1,21 +1,41 @@
 from vision.client import MLDetector
+from vision.pose_estimator import POSE, estimate_pose
 from interfaces.base_world_interface import BaseWorldInterface
-from abb_world_interface import WorldInterface as AbbWorldInterface
+from interfaces.abb_world_interface import WorldInterface as AbbWorldInterface
 from vision.kinect_camera import KinectCamera
 import vision.perception_utils as utils
-from reflect.main.scene_graph import Edge as GraphEdge
+import vision.k4a as k4a
 import numpy as np
 import cv2
 import os
 import time
+
+class Edge(object):
+    def __init__(self, start_node, end_node, edge_type="none"):
+        self.start = start_node
+        self.end = end_node
+        self.edge_type = edge_type
+    
+    def __hash__(self):
+        return hash((self.start, self.end, self.edge_type))
+
+    def __eq__(self, other):
+        if self.start == other.start and self.end == other.end and self.edge_type == other.edge_type:
+            return True
+        else:
+            return False
+
+    def __str__(self):
+        return str(self.start) + "->" + self.edge_type + "->" + str(self.end)
 
 class Node(object):
     def __init__(self, name, object_id=None, pos3d=None, corner_pts=None, bbox2d=None, pcd=None, mask=None, pose=None, global_node=False):
         self.name = name
         self.object_id = object_id # object_id
         self.bbox2d = bbox2d # 2d bounding box (4x1)
-        self.pose = pose # object pose
+        # self.pose = pose # object pose
         self.pos3d = pose.position if pos3d is None else pos3d # object position
+        self.orientation = pose.quaternion if pose is not None else None # object orientation
         self.corner_pts = corner_pts # corner points of 3d bbox (8x3)
         self.pcd = pcd # point cloud (px3)
         self.mask = mask
@@ -85,7 +105,7 @@ class SceneGraph(object):
                    relation = 'at'
                    
         if relation is not None:
-            self.edges[(target_object, relative_object)] = GraphEdge(target_object, relative_object, relation)
+            self.edges[(target_object, relative_object)] = Edge(target_object, relative_object, relation)
 
     def __eq__(self, other):
         if (set(self.nodes) == set(other.nodes)) and (set(self.edges.values()) == set(other.edges.values())):
@@ -117,6 +137,7 @@ class WorldInterface(AbbWorldInterface):
     def __init__(self, cfree_interface, rws, movable_objects, graspable_objects=None, table_offset=0, use_vision=True, known_objects=[], root_folder_path=''):
         self.gripper_position = 0
         self.known_objects = known_objects
+        self.root_folder_path = root_folder_path
         video_path = os.path.join(root_folder_path, 'video.avi')
         self.video_color = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'XVID'), 4, (960, 960))
 
@@ -132,12 +153,13 @@ class WorldInterface(AbbWorldInterface):
 
         self.graspable_objects = graspable_objects
         self.movable_objects = movable_objects
-        self.scene_graph = SceneGraph(event=self.controller.last_event, task=None)
+        self.scene_graph = SceneGraph()
         # self.scene_graph_nodes = [node.name for node in self.scene_graph.total_nodes]
         self.scene_graph_nodes = []
         self.scene_graph_file = 'scene_graph.txt'
         self.text_graph = ''
         self.hierarchical_summary_file = 'hierarchical_summary.txt'
+        BaseWorldInterface.__init__(self, cfree_interface, rws, movable_objects, graspable_objects, table_offset)
 
         self.scene_changes = []
 
@@ -146,7 +168,6 @@ class WorldInterface(AbbWorldInterface):
         self.scene_graph.object_positions = self.object_positions        
 
 
-        BaseWorldInterface.__init__(self, cfree_interface, rws, movable_objects, graspable_objects, table_offset)
 
     def get_updated_image(self , file_path=None):
         """ Returns the current image of the last event"""
@@ -221,13 +242,33 @@ class WorldInterface(AbbWorldInterface):
 
         # run pose estimation pipeline
         if self.use_vision:
-            rgb_img, _, depth_img  = self.camera.get_image(self.cropping)
-            intrinsics = self.camera._calibration.extrinsics
-            objects = f"{self.known_objects.replace("[", "").replace("]", "").replace("'", "")}"
-            # masks, boxes, scores, labels = self.detector.detect(rgb_img, objects)
-            poses, masks, boxes, scores, labels = self.detector.detect_pose(rgb_img, depth_img, intrinsics, prompt=objects, box_threshold=0.3)
-            for label, box, mask, pose, score in zip(labels, boxes, masks, poses, scores):
-                self.update_scene_graph(label, box, mask, pose, score)
+            rgb_img, depth_img, _  = self.camera.get_image(self.cropping)
+            rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+
+            for obj in self.known_objects:
+                masks, boxes, scores, labels = self.detector.detect(rgb_img, obj)
+                # poses, masks, boxes, scores, labels = self.detector.detect(rgb_img, depth_img*0.001, intrinsics, prompt=obj, box_threshold=0.3)
+                
+                color = np.array([255, 0, 255])
+                for label, box, mask, score in zip(labels, boxes, masks, scores):
+                    points = utils.get_points_3D(mask, depth_img, self.camera, self.T_camera_in_robot, self.cropping)
+                    pointcloud = np.array(points)
+                    pose = estimate_pose(mask, pointcloud=pointcloud)
+                    pose.position[2] = pose.position[2] + 0.03
+
+                    # visualize detection results
+                    overlay = np.zeros_like(rgb_img)
+                    overlay[mask > 0] = color
+                    annotated = cv2.addWeighted(rgb_img, 1, overlay, 0.5, 0)
+                    # center = np.mean(pointcloud, axis=0)
+                    # center = (center[0], center[1], center[2])
+                    # pose2d = self.camera._transformation.point_3d_to_pixel_2d(center, k4a.ECalibrationType.COLOR, k4a.ECalibrationType.COLOR)
+
+                    # Draw center of object
+                    # annotated = cv2.circle(annotated, (int(pose2d[0]), int(pose2d[1])), 5, (0, 255, 0), -1)
+                    cv2.imwrite('rgb_img.png', annotated)
+
+                    self.update_scene_graph(label, box, mask, pose, score)
              
         self.update_scene_graph_file()
         self.update_hierarchical_summary_file()
@@ -242,7 +283,7 @@ class WorldInterface(AbbWorldInterface):
             self.scene_graph_nodes.append(new_node.name)
         else:
             if new_node.name in self.movable_objects:
-                if abs(self.calc_distance(new_node.pos3d, self.object_positions[new_node.name])):
+                if abs(self.calc_distance(new_node.name, new_node.pos3d)):
                     self.object_positions[new_node.name] = new_node.pos3d
                     remove_list = []
                     for edge in self.scene_graph.edges.keys():
@@ -256,7 +297,7 @@ class WorldInterface(AbbWorldInterface):
                             self.scene_graph.total_nodes.remove(node)
                     # for node in self.scene_graph.nodes:
                     #     if node.name == new_node.name:
-                            self.scene_graph.nodes.remove(node)
+                            # self.scene_graph.nodes.remove(node)
 
                     self.scene_graph.add_node_wo_edge(new_node)
                     self.scene_graph.add_node(new_node)

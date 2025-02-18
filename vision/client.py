@@ -1,7 +1,8 @@
 from typing import Optional
 import grpc
 from google.protobuf.internal import containers as _containers
-import pipeline_pb2, pipeline_pb2_grpc
+import vision.pipeline_pb2 as pipeline_pb2
+import vision.pipeline_pb2_grpc as pipeline_pb2_grpc
 import numpy as np
 import cv2 as cv
 
@@ -86,7 +87,7 @@ class MLDetector:
         self.predictions = self.detect_raw_pose(prompt, pipeline_pb2.Image(image_format="jpg", image_data=bytes(rgb_rawdata)), pipeline_pb2.Image(image_format="png", image_data=bytes(depth_rawdata)), intrinsics, box_threshold)
 
         if len(self.predictions.masks) == 0:
-            return None
+            return [], [], [], [], []
         
         poses = []
         masks = []
