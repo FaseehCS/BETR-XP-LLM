@@ -338,6 +338,8 @@ def plan(
         tree.tick_once()
         print("Tick: ", i)
         print(pt.display.unicode_tree(root=tree, show_status=True))
+        with open(os.path.join(vlm.task_dir, "plan.txt"), "w") as f:
+            f.write(pt.display.unicode_tree(root=tree, show_status=False))
         if tree.status is pt.common.Status.FAILURE:
             expand_tree(tree, behaviors, world_interface, vlm)
 
