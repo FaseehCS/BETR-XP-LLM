@@ -11,17 +11,37 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 class VLMPrompter:
-    def __init__(self, gpt_version="gpt-4o-mini", api_key=None, root_folder_path=None, task_name=None, skill_descriptions=None, plan_execution=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt", images=None, failure_skill=None, failure_reason=None, resources=None) -> None:
-        self.gpt_version = gpt_version
+
+    def __init__(
+        self,
+        gpt_version="gpt-4o-mini",
+        api_key=None,
+        root_folder_path=None,
+        task_name=None,
+        skill_descriptions=None,
+        plan_execution=None,
+        scene_graph="scene_graph.txt",
+        hierarchical_summary="hierarchical_summary.txt",
+        images=None,
+        failure_skill=None,
+        failure_reason=None,
+        resources=None,
+        verbose=True,
+    ) -> None:
+
         if not api_key:
             raise ValueError("OpenAI API key is not provided.")
         openai.api_key = api_key
         self.root_folder_path = root_folder_path
 
+        self.gpt_version = gpt_version
+        self.verbose = verbose
+        self.proactive = True
+
         # Task-specific directory
         self.task_dir = os.path.join(root_folder_path, task_name)
         os.makedirs(self.task_dir, exist_ok=True)
-        
+
         # Reset hierarchical summary
         with open(os.path.join(self.task_dir, hierarchical_summary), 'w') as f:
             f.write("")
@@ -32,20 +52,20 @@ class VLMPrompter:
 
         # Load prompts JSON file
         self.resources = resources
-        self.prompts_json_file = self.read_json_file(os.path.join(resources, "prompts.json"))
+        self.prompts_json_file = self.read_json_file(os.path.join(resources, "prompts_real.json"))
         self.images = images if images else []  # List of image file paths
         if not self.prompts_json_file:
             raise ValueError("Invalid or missing prompts JSON file.")
-        
+
         # variables
         self.skill_preconditions = False
         self.skill_postconditions = False
-        
+
     def get_files(self):
         # Initialize file paths and attributes
         file = os.path.join(self.resources, "skill_descriptions.json")
         self.skill_descriptions = self.read_json_file(file) if os.path.exists(file) else None
-        
+
         files = ["plan_execution", "scene_graph", "hierarchical_summary", "failure_skill", "failure_reason"]        
         self.plan_execution, self.scene_graph, self.hierarchical_summary, \
             self.failure_skill, self.failure_reason = [self.read_file(os.path.join(self.resources, f + ".txt")) if os.path.exists(f) else None for f in files]
@@ -87,8 +107,140 @@ class VLMPrompter:
         except Exception as e:
             print(f"Error writing to file {file_path}: {e}")
 
+    def proactive_check(self):
+        """
+        Proactive check using detection, identification, and correction.
+        """
+        # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        self.proactive = False
+        detection_result = self.proactive_detection()
+
+        if "No" in detection_result:
+            # Identification
+            identification_result = self.proactive_identification()
+
+            # Correction
+            correction_result = self.proactive_correction()
+
+            if self.verbose:
+                print(f"Proactive Check - Detection: {detection_result}")
+                print(f"Proactive Check - Identification: {identification_result}")
+                print(f"Proactive Check - Correction: {correction_result}")
+
+            return False  # Preconditions not satisfied after corrections
+
+        return True  # Preconditions satisfied
+
+    def precondition_verifier_check(self):
+        """
+        Check preconditions using detection, identification, and correction.
+        """
+        # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        detection_result = self.precondition_verifier_detection()
+
+        if "No" in detection_result:
+            # Identification
+            identification_result = self.precondition_verifier_identification()
+
+            # Correction
+            correction_result = self.precondition_verifier_correction()
+
+            if self.verbose:
+                print(f"Precondition Verifier Check - Detection: {detection_result}")
+                print(f"Precondition Verifier Check - Identification: {identification_result}")
+                print(f"Precondition Verifier Check - Correction: {correction_result}")
+
+            return False  # Preconditions not satisfied after corrections
+
+        return True  # Preconditions satisfied
+
+    def precondition_suggestor_check(self):
+        """
+        Suggests new preconditions using detection, identification, and correction.
+        """
+        # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        detection_result = self.precondition_suggestor_detection()
+
+        if "Missing preconditions detected" in detection_result:
+            # Identification
+            identification_result = self.precondition_suggestor_identification()
+
+            # Correction
+            correction_result = self.precondition_suggestor_correction()
+
+            if self.verbose:
+                print(f"Precondition Suggestor Check - Detection: {detection_result}")
+                print(f"Precondition Suggestor Check - Identification: {identification_result}")
+                print(f"Precondition Suggestor Check - Correction: {correction_result}")
+
+            return False  # New preconditions suggested
+
+        return True  # No new preconditions are required
+
+    def postcondition_verifier_check(self):
+        """
+        Check postconditions using detection, identification, and correction.
+        """
+        # # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        detection_result = self.postcondition_verifier_detection()
+
+        if "No" in detection_result:
+            # Identification
+            identification_result = self.postcondition_verifier_identification()
+
+            # Correction
+            correction_result = self.postcondition_verifier_correction()
+
+            if self.verbose:
+                print(f"Postcondition Verifier Check - Detection: {detection_result}")
+                print(f"Postcondition Verifier Check - Identification: {identification_result}")
+                print(f"Postcondition Verifier Check - Correction: {correction_result}")
+
+            return False  # Postconditions not satisfied after corrections
+
+        return True  # Postconditions satisfied
+
+    def postcondition_suggestor_check(self):
+        """
+        Suggests new postconditions using detection, identification, and correction.
+        """
+        # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        detection_result = self.postcondition_suggestor_detection()
+
+        if "No" in detection_result:
+            # Identification
+            identification_result = self.postcondition_suggestor_identification()
+
+            # Correction
+            correction_result = self.postcondition_suggestor_correction()
+
+            if self.verbose:
+                print(f"Postcondition Suggestor Check - Detection: {detection_result}")
+                print(f"Postcondition Suggestor Check - Identification: {identification_result}")
+                print(f"Postcondition Suggestor Check - Correction: {correction_result}")
+
+            return False  # New postconditions suggested
+
+        return True  # No new postconditions are required
+
     def update_inputs(self, images=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt"):
         """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
+        images = [os.path.join(self.task_dir, 'updated_image.png')]
         file = os.path.join(self.resources, "skill_descriptions.json")
         self.skill_descriptions = self.read_json_file(file) if os.path.exists(file) else None
 
@@ -112,7 +264,6 @@ class VLMPrompter:
         except Exception as e:
             print(f"Error extracting failure skill: {e}")
             return None
-
 
     def extract_failure_reason(self, response):
         """Extracts the failure reason from the GPT response."""
@@ -177,6 +328,8 @@ class VLMPrompter:
 
                 # Successfully received a response
                 response_text = response['choices'][0]['message']["content"].strip()
+                if self.verbose:
+                    print(f"Response: {response_text}")
 
                 # Save response to file
                 self.write_file(response_file, response_text)
@@ -223,7 +376,7 @@ class VLMPrompter:
         """Populates placeholders in the prompt with actual data."""
         prompt = {}
         user_prompt = params["template-user"]
-        
+
         user_prompt = user_prompt.replace("[SKILL-NAME]", f"{self.skill_name}" or "")
         user_prompt = user_prompt.replace("[SKILL-PRECONDITIONS]", f"{self.skill_preconditions}" or "")
         user_prompt = user_prompt.replace("[SKILL-POSTCONDITIONS]", f"{self.skill_postconditions}" or "")
@@ -256,7 +409,7 @@ class VLMPrompter:
         query_file = os.path.join(self.task_dir, "preconditions_detection_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
-    
+
     def precondition_suggestor_detection(self):
         """Handles the suggestor detection functionality for preconditions."""
 
@@ -269,7 +422,7 @@ class VLMPrompter:
 
     def precondition_verifier_identification(self):
         """Handles the verifier identification functionality for preconditions."""
-        
+
         params = self.prompts_json_file["preconditionverifier"]["template-identification"]
 
         prompt = self._populate_prompt(params, include_failure_info=False)
@@ -294,7 +447,7 @@ class VLMPrompter:
 
     def precondition_suggestor_identification(self):
         """Handles the suggestor identification functionality for preconditions."""
-        
+
         params = self.prompts_json_file["preconditionsuggestor"]["template-identification"]
 
         prompt = self._populate_prompt(params, include_failure_info=True)
@@ -314,9 +467,9 @@ class VLMPrompter:
             self.write_file(os.path.join(self.task_dir, "failure_reason.txt"), failure_reason)
         else:
             print("No failure reason identified.")
-            
+
         return response
-    
+
     def precondition_verifier_correction(self):
         """Handles the verifier correction functionality for preconditions."""
 
@@ -345,7 +498,7 @@ class VLMPrompter:
 
         self.failure_skill = failure_skill
         self.failure_reason = failure_reason
-        
+
         prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "preconditions_correction_query.txt")
         response_file = os.path.join(self.task_dir, "preconditions_correction_response.txt")
@@ -354,7 +507,7 @@ class VLMPrompter:
     # Postcondition methods
     def postcondition_verifier_detection(self):
         """Handles the verifier detection functionality for postconditions."""
-        
+
         params = self.prompts_json_file["postconditionverifier"]["template-detection"]
 
         prompt = self._populate_prompt(params, include_failure_info=False)
@@ -364,7 +517,7 @@ class VLMPrompter:
 
     def postcondition_suggestor_detection(self):
         """Handles the suggestor detection functionality for postconditions."""
-        
+
         params = self.prompts_json_file["postconditionsuggestor"]["template-detection"]
 
         prompt = self._populate_prompt(params, include_failure_info=False)
@@ -374,7 +527,7 @@ class VLMPrompter:
 
     def postcondition_verifier_identification(self):
         """Handles the verifier identification functionality for postconditions."""
-        
+
         params = self.prompts_json_file["postconditionverifier"]["template-identification"]
 
         prompt = self._populate_prompt(params, include_failure_info=False)
@@ -398,7 +551,7 @@ class VLMPrompter:
 
     def postcondition_suggestor_identification(self):
         """Handles the suggestor identification functionality for postconditions."""
-        
+
         params = self.prompts_json_file["postconditionsuggestor"]["template-identification"]
 
         prompt = self._populate_prompt(params, include_failure_info=True)
@@ -422,7 +575,7 @@ class VLMPrompter:
 
     def postcondition_verifier_correction(self):
         """Handles the verifier correction functionality for postconditions."""
-    
+
         params = self.prompts_json_file["postconditionverifier"]["template-correction"]
         failure_skill = self.read_file(os.path.join(self.task_dir, "failure_skill.txt"))
         failure_reason = self.read_file(os.path.join(self.task_dir, "failure_reason.txt"))
@@ -432,7 +585,6 @@ class VLMPrompter:
         self.failure_skill = failure_skill
         self.failure_reason = failure_reason
 
-
         prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "postconditions_correction_query.txt")
         response_file = os.path.join(self.task_dir, "postconditions_correction_response.txt")
@@ -440,7 +592,7 @@ class VLMPrompter:
 
     def postcondition_suggestor_correction(self):
         """Handles the suggestor correction functionality for postconditions."""
-    
+
         params = self.prompts_json_file["postconditionsuggestor"]["template-correction"]
         failure_skill = self.read_file(os.path.join(self.task_dir, "failure_skill.txt"))
         failure_reason = self.read_file(os.path.join(self.task_dir, "failure_reason.txt"))
@@ -450,16 +602,15 @@ class VLMPrompter:
         self.failure_skill = failure_skill
         self.failure_reason = failure_reason
 
-
         prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "postconditions_correction_query.txt")
         response_file = os.path.join(self.task_dir, "postconditions_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
     # Proactive Checker methods (static inputs)
-    def proactive_detection(self, params):
+    def proactive_detection(self):
         """Handles the detection functionality for proactive checking."""
-        
+
         params = self.prompts_json_file["proactivechecker"]["template-detection"]
 
         prompt = self._populate_prompt(params, include_failure_info=False)
@@ -467,9 +618,9 @@ class VLMPrompter:
         response_file = os.path.join(self.task_dir, "proactive_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
-    def proactive_identification(self, params):
+    def proactive_identification(self):
         """Handles the identification functionality for proactive checking."""
-        
+
         params = self.prompts_json_file["proactivechecker"]["template-identification"]
 
         prompt = self._populate_prompt(params, include_failure_info=True)
@@ -491,9 +642,9 @@ class VLMPrompter:
             print("No failure reason identified.")
         return response
 
-    def proactive_correction(self, params):
+    def proactive_correction(self):
         """Handles the correction functionality for proactive checking."""
-        
+
         params = self.prompts_json_file["proactivechecker"]["template-correction"]
         failure_skill = self.read_file(os.path.join(self.task_dir, "failure_skill.txt"))
         failure_reason = self.read_file(os.path.join(self.task_dir, "failure_reason.txt"))
@@ -502,7 +653,6 @@ class VLMPrompter:
 
         self.failure_skill = failure_skill
         self.failure_reason = failure_reason
-
 
         prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "proactive_correction_query.txt")
