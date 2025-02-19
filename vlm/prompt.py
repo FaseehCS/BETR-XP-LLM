@@ -27,6 +27,7 @@ class VLMPrompter:
         failure_reason=None,
         resources=None,
         verbose=True,
+        vlm_run=True,
     ) -> None:
 
         if not api_key:
@@ -37,6 +38,7 @@ class VLMPrompter:
         self.gpt_version = gpt_version
         self.verbose = verbose
         self.proactive = True
+        self.vlm_run = vlm_run
 
         # Task-specific directory
         self.task_dir = os.path.join(root_folder_path, task_name)
@@ -383,7 +385,8 @@ class VLMPrompter:
         user_prompt = user_prompt.replace("[SKILL-DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
         user_prompt = user_prompt.replace("[CONDITION-DESCRIPTIONS]", f"{self.skill_descriptions['conditions']}" or "")
         user_prompt = user_prompt.replace("[PLAN-EXECUTION]", self.plan_execution or "")
-        user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
+        # user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
+        user_prompt = user_prompt.replace("[SCENE-GRAPH]", "Scene graph not available. Use the image for reference. Image is the ground truth. Analyze the image to identify spatial relationships.")
         user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", self.hierarchical_summary or "")
         user_prompt = user_prompt.replace("[IMAGES]", ", ".join(self.images) if self.images else "")
 

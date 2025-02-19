@@ -140,19 +140,19 @@ class LocationKnown(Behavior):
     def update(self):
         return self.check_negated(self.world_interface.object_position_known[self.parameters["target_object"]])
 
-class Upright(Behavior):
+class Occupied(Behavior):
     """
     Check if object is standing upright
     """
-    skill_name = "Upright"
-    description = "Check if object is standing upright"
+    skill_name = "Occupied"
+    description = "Check if container is occupied with object"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
-        name = Upright.to_string(parameters)
+        name = Occupied.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, Upright):
+        if not isinstance(other, Occupied):
             # don't attempt to compare against unrelated types
             return False
         return super().__eq__(other)
@@ -650,8 +650,8 @@ class Flip(Grasp, Place):
         self.counter = 0
         self.max_ticks = 500
         self.preconditions = []
-        self.postconditions = [Upright('', {"not": True, "target_object": parameters["target_object"]}, world_interface),
-                               Upright('', {"not": False, "target_object": parameters["target_object"]}, world_interface)]
+        self.postconditions = [Occupied('', {"not": True, "target_object": parameters["target_object"]}, world_interface),
+                               Occupied('', {"not": False, "target_object": parameters["target_object"]}, world_interface)]
 
         Behavior.__init__(self, name, parameters, world_interface, verbose=verbose) # pylint: disable=non-parent-init-called
 
@@ -813,9 +813,9 @@ class OpenCentrifuge(ActionBehavior):
 
 def get_condition_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [AtPos, Grasped, LocationKnown, Upright, NearRobot, Opened, Unlocked]
+    return [AtPos, Grasped, LocationKnown, Occupied]
 
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place, MoveHome, Flip]
+    return [Grasp, Place]

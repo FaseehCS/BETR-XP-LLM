@@ -44,6 +44,7 @@ from vlm.prompt import VLMPrompter
 import py_trees as pt
 import os
 import time
+import cv2
 
 class ParameterTypes(IntEnum):
     """Define the parameter types."""
@@ -362,10 +363,22 @@ class ActionBehavior(Behavior):
         self.counter = 0
         self.state = pt.common.Status.RUNNING
         self.world_interface.get_feedback()
+
+        # save images
+        self.world_interface.image_index += 1
+        rgb_img, _, _ = self.world_interface.get_updated_image()
+        # path  = os.mkdir(f"./images/{self.name}_{self.world_interface.image_index}")
+        cv2.imwrite(f"./images/{self.world_interface.image_index}_{self.name}_before.png", rgb_img)
+
         self.hierarchical_summary()
-        if self.vlm_prompter.proactive:
-            self.vlm_prompter.proactive_check()
-        self.vlm_prompter.precondition_verifier_check()
+        if self.vlm_prompter.vlm_run:
+            # if self.vlm_prompter.proactive:
+            #     print("\nProactive check:\n")
+            #     self.vlm_prompter.proactive_check()
+            # print("\nPrecondition verifier check:\n")
+            # self.vlm_prompter.precondition_verifier_check()
+            print("\nPrecondition suggestor check:\n")
+            # self.vlm_prompter.precondition_suggestor_check()
 
     @staticmethod
     def parse_parameters(node_descriptor):
@@ -393,10 +406,18 @@ class ActionBehavior(Behavior):
                 self.failure()
             else:
                 self.execute()
+                while not self.world_interface.has_stopped():
+                    time.sleep(0.5)
                 self.world_interface.get_feedback()
+                rgb_img, _, _ = self.world_interface.get_updated_image()
+                cv2.imwrite(f"./images/{self.world_interface.image_index}_{self.name}_after.png", rgb_img)
                 self.check_for_success()
-            self.end_hierarchical_summary()
-            self.vlm_prompter.postcondition_verifier_check()
+            if self.vlm_prompter.vlm_run:
+                self.end_hierarchical_summary()
+                # print("\nPostcondition verifier check:\n")
+                # self.vlm_prompter.postcondition_verifier_check()
+                print("\nPostcondition suggestor check:\n")
+                # self.vlm_prompter.postcondition_suggestor_check()
         else:
             ActionBehavior.update(self)
         return self.state
