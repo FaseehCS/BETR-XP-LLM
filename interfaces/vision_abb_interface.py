@@ -87,6 +87,8 @@ class SceneGraph(object):
         relative_object = node.name
         relation = None
 
+        if relative_object not in self.graspable_objects:
+            return
         if self.object_position_known[target_object] and self.object_position_known[relative_object]:
             if abs(self.object_positions[target_object][0] - self.object_positions[relative_object][0]) < 0.01 and \
                 abs(self.object_positions[target_object][1] - self.object_positions[relative_object][1]) < 0.01 and \
@@ -165,18 +167,10 @@ class WorldInterface(AbbWorldInterface):
 
         self.failure_added = False
         self.scene_graph.object_position_known = self.object_position_known
-        self.scene_graph.object_positions = self.object_positions        
+        self.scene_graph.object_positions = self.object_positions
+        self.scene_graph.graspable_objects = self.graspable_objects
 
-
-
-    def get_updated_image(self , file_path=None):
-        """ Returns the current image of the last event"""
-        if file_path is None:
-            file_path=self.root_folder_path
-        image = self.controller.last_event.cv2img
-        file_path = os.path.join(file_path, 'updated_image.png')
-        cv2.imwrite(file_path, image)
-        return [file_path]
+        self.get_feedback()
     
     def update_scene_graph_file(self, file_path=None):
         """
@@ -232,50 +226,66 @@ class WorldInterface(AbbWorldInterface):
 
     def get_feedback(self):
         """ Get feedback from sensors to update world state """
-        self.gripper_position = int(self.rws.ios_get_signal_value("hand_ActualPosition_R")) / 10000
-        if self.gripper_position < 0.005:
+        self.gripper_position = float(self.rws.ios_get_signal_value("hand_ActualPosition_R")) #/ 10000
+        if self.gripper_position > 0.005:
             #This means we lost the object which allowed the fingers to close fully
             if self.grasped_object is not None:
                 self.object_position_known[self.grasped_object] = False
+                if (self.grasped_object,"robot_gripper") in self.scene_graph.edges.keys():
+                    self.scene_graph.edges.pop((self.grasped_object,"robot_gripper"))
+                self.update_scene_graph_file()
                 self.grasped_object = None
                 self.stop() # Almost definitely we should stop here
 
         # run pose estimation pipeline
         if self.use_vision:
-            rgb_img, depth_img, _  = self.camera.get_image(self.cropping)
-            rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+            rgb_img, depth_img, _  = self.get_updated_image()
 
             for obj in self.known_objects:
-                masks, boxes, scores, labels = self.detector.detect(rgb_img, obj)
-                # poses, masks, boxes, scores, labels = self.detector.detect(rgb_img, depth_img*0.001, intrinsics, prompt=obj, box_threshold=0.3)
+                if "square hole" in obj:
+                    prompt = "square shaped hole in the center green box"
+                if "circle hole" in obj:
+                    prompt = "circle shaped hole in the center of green box"
+                elif "black cube" in obj:
+                    prompt = "black black cube"
+                else:
+                    prompt = obj
+
+                if self.object_at("black cube", "on", obj):
+                    continue
+                masks, boxes, scores, labels = self.detector.detect(rgb_img, prompt)
                 
-                color = np.array([255, 0, 255])
-                for label, box, mask, score in zip(labels, boxes, masks, scores):
-                    points = utils.get_points_3D(mask, depth_img, self.camera, self.T_camera_in_robot, self.cropping)
-                    pointcloud = np.array(points)
-                    pose = estimate_pose(mask, pointcloud=pointcloud)
-                    pose.position[2] = pose.position[2] + 0.03
+                color = np.array([200, 30, 230])
+                if "black cube" in obj:
+                    i = np.argmin([np.sum(mask) for mask in masks])                    
+                else:
+                    i = np.argmax(scores)
+                mask, box, score = masks[i], boxes[i], scores[i]
+                points = utils.get_points_3D(mask, depth_img, self.camera, self.T_camera_in_robot, self.cropping)
+                pointcloud = np.array(points)
+                pose = estimate_pose(mask, pointcloud=pointcloud)
+                pose.position[2] = pose.position[2] + 0.03
 
-                    # visualize detection results
-                    overlay = np.zeros_like(rgb_img)
-                    overlay[mask > 0] = color
-                    annotated = cv2.addWeighted(rgb_img, 1, overlay, 0.5, 0)
-                    # center = np.mean(pointcloud, axis=0)
-                    # center = (center[0], center[1], center[2])
-                    # pose2d = self.camera._transformation.point_3d_to_pixel_2d(center, k4a.ECalibrationType.COLOR, k4a.ECalibrationType.COLOR)
+                # visualize detection results
+                overlay = np.zeros_like(rgb_img)
+                overlay[mask > 0] = color
+                annotated = cv2.addWeighted(rgb_img, 1, overlay, 0.5, 0)
+                # center = np.mean(pointcloud, axis=0)
+                # center = (center[0], center[1], center[2])
+                # pose2d = self.camera._transformation.point_3d_to_pixel_2d(center, k4a.ECalibrationType.COLOR, k4a.ECalibrationType.COLOR)
 
-                    # Draw center of object
-                    # annotated = cv2.circle(annotated, (int(pose2d[0]), int(pose2d[1])), 5, (0, 255, 0), -1)
-                    cv2.imwrite('rgb_img.png', annotated)
+                # Draw center of object
+                # annotated = cv2.circle(annotated, (int(pose2d[0]), int(pose2d[1])), 5, (0, 255, 0), -1)
+                cv2.imwrite('rgb_img.png', annotated)
 
-                    self.update_scene_graph(label, box, mask, pose, score)
+                self.update_scene_graph(obj, box, mask, pose, pointcloud)
              
         self.update_scene_graph_file()
         self.update_hierarchical_summary_file()
         
-    def update_scene_graph(self, label, box, mask, pose, score):
+    def update_scene_graph(self, label, box, mask, pose, pointcloud):
         self.object_position_known[label] = True
-        new_node = Node(name=label, pose=pose, bbox2d=box, mask=mask)
+        new_node = Node(name=label, pose=pose, bbox2d=box, mask=mask, pcd=pointcloud)
         if new_node.name not in self.scene_graph_nodes:
             self.object_positions[new_node.name] = new_node.pos3d
             self.scene_graph.add_node_wo_edge(new_node)
@@ -306,8 +316,20 @@ class WorldInterface(AbbWorldInterface):
         """ Returns the current image of the last event"""
         if file_path is None:
             file_path=self.root_folder_path
-        image, depth_img, _  = self.camera.get_image(self.cropping)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        rgb_img, depth_img, _  = self.camera.get_image(self.cropping)
+        rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
         file_path = os.path.join(file_path, 'updated_image.png')
-        cv2.imwrite(file_path, image)
-        return [file_path]
+        cv2.imwrite(file_path, rgb_img)
+        return rgb_img, depth_img, [file_path]
+    
+    def set_grasped_object(self, target_object):
+        """ Set grasped object"""
+        self.grasped_object = target_object
+        self.object_position_known[target_object] = False
+        self.scene_graph.edges[(target_object, "robot_gripper")] = Edge(target_object, "robot_gripper", edge_type="inside")
+
+    def object_at(self, target_object, relation, relative_object):
+        """ Check if object is at a specific location """
+        if (target_object, relative_object) in self.scene_graph.edges.keys():
+            return self.scene_graph.edges[(target_object, relative_object)].edge_type == relation
+        return False
