@@ -310,6 +310,20 @@ def expand_composite_leafs(
         except AttributeError:
             pass
 
+def get_tree(
+    behavior_lists: BehaviorLists,
+    behaviors: Any,
+    world_interface: Any,
+    tree: Any
+):
+    """
+    Convert the tree to a string representation.
+    """
+    if behavior_lists is None:
+        behavior_lists = BehaviorLists()
+    py_tree_parameters = PyTreeParameters(behavior_lists=behavior_lists, behaviors=behaviors)
+    py_tree = PyTree([], py_tree_parameters, world_interface, tree)
+    return py_tree, py_tree_parameters
 
 def plan(
     world_interface: Any,
@@ -337,24 +351,31 @@ def plan(
         world_interface.get_feedback()
         tree.tick_once()
         print("Tick: ", i)
+
+        py_tree, py_tree_parameters = get_tree(behavior_lists, behaviors, world_interface, tree)
+
         print(pt.display.unicode_tree(root=tree, show_status=True))
         with open(os.path.join(vlm.task_dir, "plan.txt"), "w") as f:
-            f.write(pt.display.unicode_tree(root=tree, show_status=False))
+            f.write(f"{py_tree.bt.bt}")
         if tree.status is pt.common.Status.FAILURE:
             expand_tree(tree, behaviors, world_interface, vlm)
 
+            py_tree, py_tree_parameters = get_tree(behavior_lists, behaviors, world_interface, tree)
             print(pt.display.unicode_tree(root=tree, show_status=True))
+            with open(os.path.join(vlm.task_dir, "plan.txt"), "w") as f:
+                f.write(f"{py_tree.bt.bt}")
         elif tree.status is pt.common.Status.SUCCESS:
             break
 
     if remove_redundant_conditions:
         remove_postconditions(tree, behaviors)
     expand_composite_leafs(tree, behaviors)
-    if behavior_lists is None:
-        behavior_lists = BehaviorLists()
-    py_tree_parameters = PyTreeParameters(behavior_lists=behavior_lists, behaviors=behaviors)
-    py_tree = PyTree([], py_tree_parameters, world_interface, tree)
-    py_tree.bt.trim()
+
+    # if behavior_lists is None:
+    #     behavior_lists = BehaviorLists()
+    # py_tree_parameters = PyTreeParameters(behavior_lists=behavior_lists, behaviors=behaviors)
+    # py_tree = PyTree([], py_tree_parameters, world_interface, tree)
+    # py_tree.bt.trim()
     PyTree(py_tree.bt.bt[:], py_tree_parameters, None).save_fig("", "Planned bt")
 
     return py_tree.bt.bt, tree
