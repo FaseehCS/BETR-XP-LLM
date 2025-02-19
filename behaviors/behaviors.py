@@ -526,7 +526,7 @@ class Place(ActionBehavior):
         if self.internal_state == self.PlaceStates.RUNNING:
             if self.world_interface.has_stopped():
                 self.world_interface.set_grasped_object(None)
-                if self.parameters["relation"] == "in":
+                if self.parameters["relation"] == "inside":
                     self.world_interface.set_object_position(self.target_object,
                                                                 self.release_position - np.array([0.0, 0.0, self.world_interface.CUP_HEIGHT + 0.02])) #TODO move numbers to world_interface
                 else:
@@ -542,8 +542,8 @@ class Place(ActionBehavior):
                 self.release_position = relative_object_position + np.array([0.0, 0.0, self.world_interface.CUBE_SIZE / 2 + 0.003])
             else:
                 self.release_position = relative_object_position + np.array([0.0, 0.0, self.world_interface.CUBE_SIZE + 0.003])#TODO move numbers to world_interface
-        elif self.parameters["relation"] == "in":
-            if self.parameters["relative_object"] == '"centrifuge"':
+        elif self.parameters["relation"] == "inside":
+            if self.parameters["relative_object"] == '"hole"':
                 self.release_position = [0.5, 0.0876, 0.19]
                 self.orientation = np.array([0.1227878, -0.6963642, 0.6963642, 0.1227878])
             else:
@@ -555,7 +555,7 @@ class Place(ActionBehavior):
 
     def calc_place_approach_position(self):
         """Gets place approach position of object"""
-        if self.parameters["relation"] == "in" and self.parameters["relative_object"] == '"centrifuge"':
+        if self.parameters["relation"] == "inside" and self.parameters["relative_object"] == '"hole"':
             self.approach_position = self.release_position + np.array([0.0, -0.036, 0.1])
         else:
             self.approach_position = self.release_position + np.array([0.0, 0.0, 0.05])#TODO move numbers to world_interface
