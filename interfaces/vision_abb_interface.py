@@ -97,7 +97,7 @@ class SceneGraph(object):
             elif abs(self.object_positions[target_object][0] - self.object_positions[relative_object][0]) < 0.01 and \
                 abs(self.object_positions[target_object][1] - self.object_positions[relative_object][1]) < 0.01 and \
                 abs(self.object_positions[target_object][2] - self.object_positions[relative_object][2]) < 0.03:
-                relation = 'in'
+                relation = 'inside'
 
         elif isinstance(relative_object, np.ndarray):
             if self.object_position_known[target_object]:
@@ -301,3 +301,13 @@ class WorldInterface(AbbWorldInterface):
 
                     self.scene_graph.add_node_wo_edge(new_node)
                     self.scene_graph.add_node(new_node)
+
+    def get_updated_image(self, file_path=None):
+        """ Returns the current image of the last event"""
+        if file_path is None:
+            file_path=self.root_folder_path
+        image, depth_img, _  = self.camera.get_image(self.cropping)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        file_path = os.path.join(file_path, 'updated_image.png')
+        cv2.imwrite(file_path, image)
+        return [file_path]
