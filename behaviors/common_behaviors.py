@@ -364,17 +364,19 @@ class ActionBehavior(Behavior):
         self.state = pt.common.Status.RUNNING
         self.world_interface.get_feedback()
 
-        # save images
-        self.world_interface.image_index += 1
+        # save images        
+        files = [f for f in os.listdir("./images") if f.endswith(".png")]
+        self.world_interface.image_index = int(round(len(files))/2 + 1)
+        self.vlm_prompter.query_index = self.world_interface.image_index
         rgb_img, _, _ = self.world_interface.get_updated_image()
         # path  = os.mkdir(f"./images/{self.name}_{self.world_interface.image_index}")
         cv2.imwrite(f"./images/{self.world_interface.image_index}_{self.name}_before.png", rgb_img)
 
         self.hierarchical_summary()
         if self.vlm_prompter.vlm_run:
-            # if self.vlm_prompter.proactive:
-            #     print("\nProactive check:\n")
-            #     self.vlm_prompter.proactive_check()
+            if self.vlm_prompter.proactive:
+                print("\nProactive check:\n")
+                self.vlm_prompter.proactive_check()
 
             print("\nPrecondition verifier check:\n")
             failed_precondition = self.vlm_prompter.precondition_verifier_check()
@@ -382,6 +384,9 @@ class ActionBehavior(Behavior):
                 for condition in self.preconditions:
                     if failed_precondition == condition.name:
                         self.condition.state = False
+            else:
+                for condition in self.preconditions:
+                    condition.state = True
 
             print("\nPrecondition suggestor check:\n")
             missing_precondition = self.vlm_prompter.precondition_suggestor_check()
@@ -428,6 +433,9 @@ class ActionBehavior(Behavior):
                         for condition in self.postconditions:
                             if failed_postcondition == condition.name:
                                 self.condition.state = False
+                else:
+                    for condition in self.preconditions:
+                        condition.state = True
                 print("\nPostcondition suggestor check:\n")
                 missing_postcondition = self.vlm_prompter.postcondition_suggestor_check()
                 if missing_postcondition is not None:
