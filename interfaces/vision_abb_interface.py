@@ -3,12 +3,58 @@ from vision.pose_estimator import POSE, estimate_pose
 from interfaces.base_world_interface import BaseWorldInterface
 from interfaces.abb_world_interface import WorldInterface as AbbWorldInterface
 from vision.kinect_camera import KinectCamera
+import open3d as o3d
+import torch
 import vision.perception_utils as utils
 import vision.k4a as k4a
 import numpy as np
 import cv2
 import os
 import time
+from reflect.main.utils import get_pcd_dist, is_inside
+
+IMAGE_DIR = "BETR-XP-LLM/detections/"
+# =========  Parameters for spatial relation heuristics ============
+IN_CONTACT_DISTANCE = 0.01
+CLOSE_DISTANCE = 0.018
+INSIDE_THRESH = 0.65 # increqasing it makes on and decreasing it makes inside
+ON_TOP_OF_THRESH = 0.1
+NORM_THRESH_FRONT_BACK = 0.9
+NORM_THRESH_UP_DOWN = 0.9
+NORM_THRESH_LEFT_RIGHT = 0.8
+OCCLUDE_RATIO_THRESH = 0.5
+DEPTH_THRESH = 0.9
+BULKY_OBJECTS = ["green box"]
+# ==================================================================
+
+
+
+def gen_node(obj, pose, mask, pcd):
+    name = obj
+    # total_points = torch.tensor(np.array([]))
+        
+    # downsample point cloud
+    obj_pcd = o3d.geometry.PointCloud()
+    obj_pcd.points = o3d.utility.Vector3dVector(pcd)
+    voxel_down_pcd = obj_pcd.voxel_down_sample(voxel_size=0.01)
+
+    # denoise point cloud
+    pcd_obj = torch.tensor(np.array(voxel_down_pcd.points))
+
+    #==============================================================
+
+    total_points = pcd_obj
+
+    boxes3d_pts = o3d.utility.Vector3dVector(pcd_obj)
+    box = o3d.geometry.AxisAlignedBoundingBox.create_from_points(boxes3d_pts)
+
+    node = Node(name=name,
+                pose=pose,
+                mask=mask,
+                pos3d=box.get_center(), 
+                corner_pts=np.array(box.get_box_points()), 
+                pcd=total_points)
+    return node
 
 class Edge(object):
     def __init__(self, start_node, end_node, edge_type="none"):
@@ -33,7 +79,7 @@ class Node(object):
         self.name = name
         self.object_id = object_id # object_id
         self.bbox2d = bbox2d # 2d bounding box (4x1)
-        # self.pose = pose # object pose
+        self.pose = pose # object pose
         self.pos3d = pose.position if pos3d is None else pos3d # object position
         self.orientation = pose.quaternion if pose is not None else None # object orientation
         self.corner_pts = corner_pts # corner points of 3d bbox (8x3)
@@ -82,32 +128,68 @@ class SceneGraph(object):
                 self.nodes.append(new_node)
         return new_node
 
-    def add_edge(self, node, new_node):
-        target_object = new_node.name
-        relative_object = node.name
-        relation = None
+    # def add_edge(self, node, new_node):
+    #     target_object = new_node.name
+    #     relative_object = node.name
+    #     relation = None
 
-        if relative_object not in self.graspable_objects:
-            return
-        if self.object_position_known[target_object] and self.object_position_known[relative_object]:
-            if abs(self.object_positions[target_object][0] - self.object_positions[relative_object][0]) < 0.01 and \
-                abs(self.object_positions[target_object][1] - self.object_positions[relative_object][1]) < 0.01 and \
-                abs(self.object_positions[target_object][2] - \
-                    BaseWorldInterface.CUBE_SIZE - self.object_positions[relative_object][2]) < 0.01:
-                relation = 'on'
+    #     if relative_object not in self.graspable_objects:
+    #         return
+    #     if self.object_position_known[target_object] and self.object_position_known[relative_object]:
+    #         if abs(self.object_positions[target_object][0] - self.object_positions[relative_object][0]) < 0.01 and \
+    #             abs(self.object_positions[target_object][1] - self.object_positions[relative_object][1]) < 0.01 and \
+    #             abs(self.object_positions[target_object][2] - \
+    #                 BaseWorldInterface.CUBE_SIZE - self.object_positions[relative_object][2]) < 0.01:
+    #             relation = 'on'
 
-            elif abs(self.object_positions[target_object][0] - self.object_positions[relative_object][0]) < 0.01 and \
-                abs(self.object_positions[target_object][1] - self.object_positions[relative_object][1]) < 0.01 and \
-                abs(self.object_positions[target_object][2] - self.object_positions[relative_object][2]) < 0.03:
-                relation = 'inside'
+    #         elif np.sum(new_node.mask) > np.sum(node.mask):
+    #             if abs(self.object_positions[target_object][0] - self.object_positions[relative_object][0]) < 0.01 and \
+    #             abs(self.object_positions[target_object][1] - self.object_positions[relative_object][1]) < 0.01 and \
+    #             abs(self.object_positions[target_object][2] - self.object_positions[relative_object][2]) < 0.03:
+    #                 relation = 'inside'
 
-        elif isinstance(relative_object, np.ndarray):
-            if self.object_position_known[target_object]:
-                if self.calc_distance(target_object, relative_object) < 0.01:
-                   relation = 'at'
+    #     elif isinstance(relative_object, np.ndarray):
+    #         if self.object_position_known[target_object]:
+    #             if self.calc_distance(target_object, relative_object) < 0.01:
+    #                relation = 'at'
                    
-        if relation is not None:
-            self.edges[(target_object, relative_object)] = Edge(target_object, relative_object, relation)
+    #     if relation is not None:
+    #         self.edges[(target_object, relative_object)] = Edge(target_object, relative_object, relation)
+
+    def add_edge(self, node, new_node):
+
+        box_A, box_B = np.array(node.corner_pts), np.array(new_node.corner_pts)
+        if len(node.pcd) == 0 or len(new_node.pcd) == 0:
+            return
+        else:
+            dist = get_pcd_dist(node.pcd, new_node.pcd)
+        
+        box_A_pts, box_B_pts = np.array(node.pcd), np.array(new_node.pcd)
+
+
+        # IN CONTACT
+        if dist < IN_CONTACT_DISTANCE:
+            if new_node.name not in BULKY_OBJECTS:
+                print("Long expression: ", len(np.where((box_B_pts[:, 0] < box_A[4, 0]) & (box_B_pts[:, 0] > box_A[0, 0]) & 
+                        (box_B_pts[:, 2] < box_A[4, 2]) & (box_B_pts[:, 2] > box_A[0, 2]))[0]))
+                print("Compared against: ", len(box_B_pts) * ON_TOP_OF_THRESH)
+
+                if is_inside(src_pts=box_B_pts, target_pts=box_A_pts, thresh=INSIDE_THRESH):
+                    print("Distance: ", np.linalg.norm(np.array(new_node.pose.position) - np.array(node.pose.position)))
+                    if np.linalg.norm(np.array(new_node.pose.position) - np.array(node.pose.position)) < CLOSE_DISTANCE:
+                        self.edges[(new_node.name, node.name)] = Edge(new_node, node, "inside")
+
+                elif len(np.where((box_B_pts[:, 0] < box_A[4, 0]) & (box_B_pts[:, 0] > box_A[0, 0]) & 
+                        (box_B_pts[:, 2] < box_A[4, 2]) & (box_B_pts[:, 2] > box_A[0, 2]))[0]) > len(box_B_pts) * ON_TOP_OF_THRESH:
+                    print("\n Passed First Condition \n")
+                    print("Long expression: ", len(np.where(box_B_pts[:, 1] > box_A[4, 1])[0]))
+                    print("Compared against: ", len(box_B_pts) * ON_TOP_OF_THRESH)
+                    # if len(np.where(box_B_pts[:, 1] > box_A[4, 1])[0]) > len(box_B_pts) * ON_TOP_OF_THRESH:
+                    self.edges[(new_node.name, node.name)] = Edge(new_node, node, "on")
+
+                    # elif len(np.where(box_A_pts[:, 1] > box_B[4, 1])[0]) > len(box_A_pts) * ON_TOP_OF_THRESH:
+                    #     if node.name not in BULKY_OBJECTS:
+                    #         self.edges[(node.name, new_node.name)] = Edge(node, new_node, "on")
 
     def __eq__(self, other):
         if (set(self.nodes) == set(other.nodes)) and (set(self.edges.values()) == set(other.edges.values())):
@@ -142,6 +224,7 @@ class WorldInterface(AbbWorldInterface):
         self.root_folder_path = root_folder_path
         video_path = os.path.join(root_folder_path, 'video.avi')
         self.video_color = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'XVID'), 4, (960, 960))
+        self.image_index = 6
 
         self.use_vision = use_vision
         if use_vision:
@@ -240,52 +323,63 @@ class WorldInterface(AbbWorldInterface):
         # run pose estimation pipeline
         if self.use_vision:
             rgb_img, depth_img, _  = self.get_updated_image()
+            # depth_img = cv2.imread(os.path.join(IMAGE_DIR, "depth.png"), cv2.IMREAD_UNCHANGED)
 
             for obj in self.known_objects:
-                if "square hole" in obj:
-                    prompt = "square shaped hole in the center green box"
-                if "circle hole" in obj:
-                    prompt = "circle shaped hole in the center of green box"
-                elif "black cube" in obj:
-                    prompt = "black black cube"
-                else:
-                    prompt = obj
+                # if "green" in obj:
+                #     prompt = "circle shaped hole in the center green box"
+                # if "square hole" in obj:
+                #     prompt = "square shaped hole in the center green box"
+                # elif "circle hole" in obj:
+                #     prompt = "circle shaped hole in the center of green box"
+            #     elif "black cube" in obj:
+            #         prompt = "black black cube"
+            #     else:
+            #         prompt = obj
 
-                if self.object_at("black cube", "on", obj):
-                    continue
-                masks, boxes, scores, labels = self.detector.detect(rgb_img, prompt)
-                
-                color = np.array([200, 30, 230])
-                if "black cube" in obj:
-                    i = np.argmin([np.sum(mask) for mask in masks])                    
-                else:
-                    i = np.argmax(scores)
-                mask, box, score = masks[i], boxes[i], scores[i]
+            #     objects += prompt + " . "
+
+            # masks, boxes, scores, labels = self.detector.detect(rgb_img, prompt)
+            
+            # color = np.array([200, 30, 230])
+            # if "black cube" in obj:
+            #     i = np.argmin([np.sum(mask) for mask in masks])                    
+            # else:
+            #     i = np.argmax(scores)
+
+                mask = cv2.imread(os.path.join(IMAGE_DIR, obj+'.png'), cv2.IMREAD_GRAYSCALE)
                 points = utils.get_points_3D(mask, depth_img, self.camera, self.T_camera_in_robot, self.cropping)
                 pointcloud = np.array(points)
                 pose = estimate_pose(mask, pointcloud=pointcloud)
                 pose.position[2] = pose.position[2] + 0.03
 
-                # visualize detection results
-                overlay = np.zeros_like(rgb_img)
-                overlay[mask > 0] = color
-                annotated = cv2.addWeighted(rgb_img, 1, overlay, 0.5, 0)
-                # center = np.mean(pointcloud, axis=0)
-                # center = (center[0], center[1], center[2])
-                # pose2d = self.camera._transformation.point_3d_to_pixel_2d(center, k4a.ECalibrationType.COLOR, k4a.ECalibrationType.COLOR)
+            # visualize detection results
+            # overlay = np.zeros_like(rgb_img)
+            # overlay[mask > 0] = color
+            # annotated = cv2.addWeighted(rgb_img, 1, overlay, 0.5, 0)
+            # center = np.mean(pointcloud, axis=0)
+            # center = (center[0], center[1], center[2])
+            # pose2d = self.camera._transformation.point_3d_to_pixel_2d(center, k4a.ECalibrationType.COLOR, k4a.ECalibrationType.COLOR)
 
-                # Draw center of object
-                # annotated = cv2.circle(annotated, (int(pose2d[0]), int(pose2d[1])), 5, (0, 255, 0), -1)
-                cv2.imwrite('rgb_img.png', annotated)
+            # Draw center of object
+            # annotated = cv2.circle(annotated, (int(pose2d[0]), int(pose2d[1])), 5, (0, 255, 0), -1)
+            # cv2.imwrite('rgb_img.png', annotated)
 
-                self.update_scene_graph(obj, box, mask, pose, pointcloud)
+
+                hole_mask = cv2.imread(os.path.join(IMAGE_DIR, 'hole.png'), cv2.IMREAD_GRAYSCALE)
+                hole_points = utils.get_points_3D(mask, depth_img, self.camera, self.T_camera_in_robot, self.cropping)
+                hole_pointcloud = np.array(points)
+                self.hole_pose = estimate_pose(mask, pointcloud=pointcloud)
+
+                self.update_scene_graph(label=obj, mask=mask, pose=pose, pointcloud=pointcloud)
              
         self.update_scene_graph_file()
         self.update_hierarchical_summary_file()
         
-    def update_scene_graph(self, label, box, mask, pose, pointcloud):
+    def update_scene_graph(self, label, mask, pose, pointcloud):
         self.object_position_known[label] = True
-        new_node = Node(name=label, pose=pose, bbox2d=box, mask=mask, pcd=pointcloud)
+        # new_node = Node(name=label, pose=pose, mask=mask, pcd=pointcloud)
+        new_node = gen_node(obj=label, pose=pose, mask=mask, pcd=pointcloud)
         if new_node.name not in self.scene_graph_nodes:
             self.object_positions[new_node.name] = new_node.pos3d
             self.scene_graph.add_node_wo_edge(new_node)
@@ -315,11 +409,13 @@ class WorldInterface(AbbWorldInterface):
     def get_updated_image(self, file_path=None):
         """ Returns the current image of the last event"""
         if file_path is None:
-            file_path=self.root_folder_path
-        rgb_img, depth_img, _  = self.camera.get_image(self.cropping)
-        rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
-        file_path = os.path.join(file_path, 'updated_image.png')
-        cv2.imwrite(file_path, rgb_img)
+            file_path = os.path.join(IMAGE_DIR, 'rgb.jpg')
+        # rgb_img, depth_img, _  = self.camera.get_image(self.cropping)
+        # rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+        rgb_img = cv2.imread(os.path.join(IMAGE_DIR, "rgb.jpg"), cv2.IMREAD_COLOR)
+        depth_img = np.load(os.path.join(IMAGE_DIR, "depth.npy"))
+        # cv2.imwrite(file_path, rgb_img)
+        self.video_color.write(rgb_img)
         return rgb_img, depth_img, [file_path]
     
     def set_grasped_object(self, target_object):
