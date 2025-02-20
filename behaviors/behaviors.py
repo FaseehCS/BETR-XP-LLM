@@ -19,7 +19,7 @@ class AtPos(Behavior):
     Check if object is at position
     """
     skill_name = "At_Pos"
-    description = "Check if object is at position"
+    description = "Check if object is at position e.g. At_Pos(Cup, on, countertop), At_Pos(Cup, inside, microwave), etc. - Relation: 'on' indicates placement on a surface. - Relation: 'inside' indicates containment within an object. For containers, if AtPos(target, relation='inside', relative_object) exists, the container is occupied."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = AtPos.to_string(parameters)
@@ -88,7 +88,7 @@ class Grasped(Behavior):
     Check if object is grasped
     """
     skill_name = "grasped"
-    description = "Check if object is in robot's gripper"
+    description = "Check if object is in robot's gripper. If the gripper is invisible the object will be in the bottom of the image. The object will be floating and zoomed in. E.g. grasped(Cup),  grasped(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Grasped.to_string(parameters)
@@ -119,7 +119,7 @@ class LocationKnown(Behavior):
     Check if object location is known
     """
     skill_name = "Location_Known"
-    description = "Check if object location is known"
+    description = "Check if object location is known. This includes the objects that are clearly visible to the robot and the objects that are not visible but we know their locations and navigable. E.g. Location_Known(Cup), Location_Known(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = LocationKnown.to_string(parameters)
@@ -171,7 +171,7 @@ class NearRobot(Behavior):
     Check if object is within reach
     """
     skill_name = "Near_Robot"
-    description = "Check if object is within reacht"
+    description = "Check if object is within reach. This includes the objects that are directly infront of the robot and are visible to the robot. E.g. Near_Robot(Cup), Near_Robot(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = NearRobot.to_string(parameters)
@@ -405,7 +405,7 @@ class Place(ActionBehavior):
     Place object on position
     """
     skill_name = "Place"
-    description = "Place an object with specified relation (at, on, inside) (e.g. Place Cup Inside microwave, place apple On countertop)."
+    description = "Place an object with specified relation (on, inside) (e.g. Place Cup inside microwave, place apple On countertop). - For 'on' relations: The target surface must be clear. - For 'inside' relations: The target container must not have another object already inside, as indicated by an existing AtPos condition with relation 'inside'."
 
     class PlaceStates(IntEnum):
         """Define the internal states during execution."""
