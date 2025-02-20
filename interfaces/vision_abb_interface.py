@@ -310,8 +310,8 @@ class WorldInterface(AbbWorldInterface):
 
     def get_feedback(self):
         """ Get feedback from sensors to update world state """
-        self.gripper_position = float(self.rws.ios_get_signal_value("hand_ActualPosition_R")) #/ 10000
-        if self.gripper_position > 0.005:
+        self.gripper_position = float(self.rws.ios_get_signal_value("hand_ActualPosition_R")) / 10000
+        if self.gripper_position < 0.005:
             #This means we lost the object which allowed the fingers to close fully
             if self.grasped_object is not None:
                 self.object_position_known[self.grasped_object] = False
@@ -369,10 +369,10 @@ class WorldInterface(AbbWorldInterface):
             # cv2.imwrite('rgb_img.png', annotated)
 
 
-                hole_mask = cv2.imread(os.path.join(IMAGE_DIR, 'hole.png'), cv2.IMREAD_GRAYSCALE)
-                hole_points = utils.get_points_3D(mask, depth_img, self.camera, self.T_camera_in_robot, self.cropping)
-                hole_pointcloud = np.array(points)
-                self.hole_pose = estimate_pose(mask, pointcloud=pointcloud)
+                # hole_mask = cv2.imread(os.path.join(IMAGE_DIR, 'hole.png'), cv2.IMREAD_GRAYSCALE)
+                # hole_points = utils.get_points_3D(hole_mask, depth_img, self.camera, self.T_camera_in_robot, self.cropping)
+                # hole_pointcloud = np.array(hole_points)
+                # self.hole_pose = estimate_pose(mask, pointcloud=hole_pointcloud)
 
                 self.update_scene_graph(label=obj, mask=mask, pose=pose, pointcloud=pointcloud)
              
