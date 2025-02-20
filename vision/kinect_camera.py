@@ -16,6 +16,7 @@
 
 import vision.k4a as k4a
 # import imageio
+import pickle
 import matplotlib.pyplot as plt
 import typing
 import numpy as np
@@ -50,38 +51,40 @@ class KinectCamera(CameraBase):
         - Rotation: in RPY (degree) [-133.274, 1.356, -90.158]
         """
         self._saturation_coef = 1.0
-        self._device = None
-        while not self._device:
-            self._device = k4a.Device.open()
-            time.sleep(1)
-        while self._device.start_cameras(self.CONFIG) == k4a.EStatus.FAILED:
-            time.sleep(1)
-            print("Failed to start cameras, retrying...")
-        print("Kinect device started.")
-        self._device.set_color_control(
-            k4a.EColorControlCommand.EXPOSURE_TIME_ABSOLUTE,
-            k4a.EColorControlMode.AUTO,
-            3000
-        )
-        self._device.set_color_control(
-            k4a.EColorControlCommand.WHITEBALANCE,
-            k4a.EColorControlMode.AUTO,
-            4500
-        )
-        self._device.set_color_control(
-            k4a.EColorControlCommand.BACKLIGHT_COMPENSATION,
-            k4a.EColorControlMode.AUTO,
-            1
-        )
-        self._device.set_color_control(
-            k4a.EColorControlCommand.POWERLINE_FREQUENCY,
-            k4a.EColorControlMode.MANUAL,
-            1
-        )
-        self._calibration = self._device.get_calibration(
-            self.CONFIG.depth_mode,
-            self.CONFIG.color_resolution
-        )
+        # self._device = None
+        # while not self._device:
+        #     self._device = k4a.Device.open()
+        #     time.sleep(1)
+        # while self._device.start_cameras(self.CONFIG) == k4a.EStatus.FAILED:
+        #     time.sleep(1)
+        #     print("Failed to start cameras, retrying...")
+        # print("Kinect device started.")
+        # self._device.set_color_control(
+        #     k4a.EColorControlCommand.EXPOSURE_TIME_ABSOLUTE,
+        #     k4a.EColorControlMode.AUTO,
+        #     3000
+        # )
+        # self._device.set_color_control(
+        #     k4a.EColorControlCommand.WHITEBALANCE,
+        #     k4a.EColorControlMode.AUTO,
+        #     4500
+        # )
+        # self._device.set_color_control(
+        #     k4a.EColorControlCommand.BACKLIGHT_COMPENSATION,
+        #     k4a.EColorControlMode.AUTO,
+        #     1
+        # )
+        # self._device.set_color_control(
+        #     k4a.EColorControlCommand.POWERLINE_FREQUENCY,
+        #     k4a.EColorControlMode.MANUAL,
+        #     1
+        # )
+        # self._calibration = self._device.get_calibration(
+        #     self.CONFIG.depth_mode,
+        #     self.CONFIG.color_resolution
+        # )
+        with open("BETR-XP-LLM/detections/calibration.pkl", "rb") as f:
+            self._calibration = pickle.load(f)
         self._transformation = k4a.Transformation(self._calibration)
         self._position = position
         self._orientation = orientation
@@ -89,11 +92,11 @@ class KinectCamera(CameraBase):
 
         self.bounds = np.float32([[0.15, 0.75], [-0.3, 0.3], [-0.15, 0.1]])
         # Perform auto white balance
-        capture = None
-        while not capture:
-            capture = self._device.get_capture(-1)
-        for i in range(5):
-            self._device.get_capture(-1)
+        # capture = None
+        # while not capture:
+        #     capture = self._device.get_capture(-1)
+        # for i in range(5):
+        #     self._device.get_capture(-1)
 
 
     def close(self):
