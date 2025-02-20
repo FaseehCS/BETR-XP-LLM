@@ -135,7 +135,7 @@ def estimate_pose(depth, mask=None, K=None, pointcloud=None):
         pointcloud, _ = depth2pc(depth*mask, K)
 
     # We get the cap planes and centroids
-    centroid, plane = plane_from_points(pointcloud, plane_threshold=0.01, min_points=40)
+    centroid, plane = plane_from_points(pointcloud, plane_threshold=0.005, min_points=40)
 
     # We get the dominant axis
     pca = PCA(2,svd_solver='full')

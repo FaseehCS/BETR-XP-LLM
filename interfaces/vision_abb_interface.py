@@ -16,9 +16,9 @@ from reflect.main.utils import get_pcd_dist, is_inside
 IMAGE_DIR = "BETR-XP-LLM/detections/"
 # =========  Parameters for spatial relation heuristics ============
 IN_CONTACT_DISTANCE = 0.01
-CLOSE_DISTANCE = 0.018
-INSIDE_THRESH = 0.65 # increqasing it makes on and decreasing it makes inside
-ON_TOP_OF_THRESH = 0.1
+CLOSE_DISTANCE = 0.02
+INSIDE_THRESH = 0.5 # increqasing it makes on and decreasing it makes inside
+ON_TOP_OF_THRESH = 0.4
 NORM_THRESH_FRONT_BACK = 0.9
 NORM_THRESH_UP_DOWN = 0.9
 NORM_THRESH_LEFT_RIGHT = 0.8
@@ -170,9 +170,9 @@ class SceneGraph(object):
         # IN CONTACT
         if dist < IN_CONTACT_DISTANCE:
             if new_node.name not in BULKY_OBJECTS:
-                print("Long expression: ", len(np.where((box_B_pts[:, 0] < box_A[4, 0]) & (box_B_pts[:, 0] > box_A[0, 0]) & 
-                        (box_B_pts[:, 2] < box_A[4, 2]) & (box_B_pts[:, 2] > box_A[0, 2]))[0]))
-                print("Compared against: ", len(box_B_pts) * ON_TOP_OF_THRESH)
+                # print("Long expression: ", len(np.where((box_B_pts[:, 0] < box_A[4, 0]) & (box_B_pts[:, 0] > box_A[0, 0]) & 
+                #         (box_B_pts[:, 2] < box_A[4, 2]) & (box_B_pts[:, 2] > box_A[0, 2]))[0]))
+                # print("Compared against: ", len(box_B_pts) * ON_TOP_OF_THRESH)
 
                 if is_inside(src_pts=box_B_pts, target_pts=box_A_pts, thresh=INSIDE_THRESH):
                     print("Distance: ", np.linalg.norm(np.array(new_node.pose.position) - np.array(node.pose.position)))
@@ -181,9 +181,9 @@ class SceneGraph(object):
 
                 elif len(np.where((box_B_pts[:, 0] < box_A[4, 0]) & (box_B_pts[:, 0] > box_A[0, 0]) & 
                         (box_B_pts[:, 2] < box_A[4, 2]) & (box_B_pts[:, 2] > box_A[0, 2]))[0]) > len(box_B_pts) * ON_TOP_OF_THRESH:
-                    print("\n Passed First Condition \n")
-                    print("Long expression: ", len(np.where(box_B_pts[:, 1] > box_A[4, 1])[0]))
-                    print("Compared against: ", len(box_B_pts) * ON_TOP_OF_THRESH)
+                    # print("\n Passed First Condition \n")
+                    # print("Long expression: ", len(np.where(box_B_pts[:, 1] > box_A[4, 1])[0]))
+                    # print("Compared against: ", len(box_B_pts) * ON_TOP_OF_THRESH)
                     # if len(np.where(box_B_pts[:, 1] > box_A[4, 1])[0]) > len(box_B_pts) * ON_TOP_OF_THRESH:
                     self.edges[(new_node.name, node.name)] = Edge(new_node, node, "on")
 
@@ -225,6 +225,7 @@ class WorldInterface(AbbWorldInterface):
         video_path = os.path.join(root_folder_path, 'video.avi')
         self.video_color = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'XVID'), 4, (960, 960))
         self.image_index = 6
+        self.hole_pose = None
 
         self.use_vision = use_vision
         if use_vision:
@@ -347,7 +348,9 @@ class WorldInterface(AbbWorldInterface):
             # else:
             #     i = np.argmax(scores)
 
-                mask = cv2.imread(os.path.join(IMAGE_DIR, obj+'.png'), cv2.IMREAD_GRAYSCALE)
+                mask = None
+                while mask is None:
+                    mask = cv2.imread(os.path.join(IMAGE_DIR, obj+'.png'), cv2.IMREAD_GRAYSCALE)
                 points = utils.get_points_3D(mask, depth_img, self.camera, self.T_camera_in_robot, self.cropping)
                 pointcloud = np.array(points)
                 pose = estimate_pose(mask, pointcloud=pointcloud)
@@ -381,14 +384,17 @@ class WorldInterface(AbbWorldInterface):
         # new_node = Node(name=label, pose=pose, mask=mask, pcd=pointcloud)
         new_node = gen_node(obj=label, pose=pose, mask=mask, pcd=pointcloud)
         if new_node.name not in self.scene_graph_nodes:
-            self.object_positions[new_node.name] = new_node.pos3d
+            # if new_node.name == "green box":
+            #     self.object_positions[new_node.name] = self.hole_pose.position
+            # else:
+            self.object_positions[new_node.name] = new_node.pose.position
             self.scene_graph.add_node_wo_edge(new_node)
             self.scene_graph.add_node(new_node)
             self.scene_graph_nodes.append(new_node.name)
         else:
             if new_node.name in self.movable_objects:
-                if abs(self.calc_distance(new_node.name, new_node.pos3d)):
-                    self.object_positions[new_node.name] = new_node.pos3d
+                if abs(self.calc_distance(new_node.name, new_node.pose.position)):
+                    self.object_positions[new_node.name] = new_node.pose.position
                     remove_list = []
                     for edge in self.scene_graph.edges.keys():
                         if new_node.name in edge:
@@ -413,7 +419,15 @@ class WorldInterface(AbbWorldInterface):
         # rgb_img, depth_img, _  = self.camera.get_image(self.cropping)
         # rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
         rgb_img = cv2.imread(os.path.join(IMAGE_DIR, "rgb.jpg"), cv2.IMREAD_COLOR)
-        depth_img = np.load(os.path.join(IMAGE_DIR, "depth.npy"))
+        counter = 0
+        while counter < 3:
+            try:
+                depth_img = np.load(os.path.join(IMAGE_DIR, "depth.npy"))
+                break
+            except:
+                time.sleep(1)
+                counter += 1
+
         # cv2.imwrite(file_path, rgb_img)
         self.video_color.write(rgb_img)
         return rgb_img, depth_img, [file_path]

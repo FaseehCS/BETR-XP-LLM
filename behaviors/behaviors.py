@@ -528,7 +528,7 @@ class Place(ActionBehavior):
                 self.world_interface.set_grasped_object(None)
                 if self.parameters["relation"] == "inside":
                     self.world_interface.set_object_position(self.target_object,
-                                                                self.release_position - np.array([0.0, 0.0, self.world_interface.CUP_HEIGHT + 0.02])) #TODO move numbers to world_interface
+                                                                self.release_position - np.array([0.0, 0.0, 0.02])) #TODO move numbers to world_interface
                 else:
                     self.world_interface.set_object_position(self.target_object,
                                                                 self.release_position - np.array([0.0, 0.0, 0.003])) #TODO move numbers to world_interface
@@ -543,20 +543,19 @@ class Place(ActionBehavior):
             else:
                 self.release_position = relative_object_position + np.array([0.0, 0.0, self.world_interface.CUBE_SIZE + 0.003])#TODO move numbers to world_interface
         elif self.parameters["relation"] == "inside":
-            if self.parameters["relative_object"] == '"hole"':
-                self.release_position = [0.5, 0.0876, 0.19]
-                self.orientation = np.array([0.1227878, -0.6963642, 0.6963642, 0.1227878])
-            else:
-                relative_object_position = self.world_interface.get_position(self.parameters["relative_object"])
-                if relative_object_position is not None:
-                    self.release_position = relative_object_position + np.array([0.0, 0.0, self.world_interface.CUP_HEIGHT + 0.02])#TODO move numbers to world_interface
+            relative_object_position = self.world_interface.get_position(self.parameters["relative_object"])
+            if relative_object_position is not None:
+                if self.parameters["relative_object"] == '"green box"' and self.world_interface.calculate_distance(self.parameters["relative_object"], self.hole_pose.position) < 0.03:
+                    self.release_position = self.world_interface.hole_pose.position + np.array([0.0, 0.0, 0.04])
+                else:
+                    self.release_position = relative_object_position + np.array([0.01, 0.0, 0.04])
         elif self.parameters["relation"] == "at" and isinstance(self.parameters["relative_object"], np.ndarray):
             self.release_position = self.parameters["relative_object"]
 
     def calc_place_approach_position(self):
         """Gets place approach position of object"""
-        if self.parameters["relation"] == "inside" and self.parameters["relative_object"] == '"hole"':
-            self.approach_position = self.release_position + np.array([0.0, -0.036, 0.1])
+        if self.parameters["relation"] == "inside" and self.parameters["relative_object"] == "green box":
+            self.approach_position = self.release_position + np.array([0.0, 0.0, 0.05])
         else:
             self.approach_position = self.release_position + np.array([0.0, 0.0, 0.05])#TODO move numbers to world_interface
 
