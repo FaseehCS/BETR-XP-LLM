@@ -283,6 +283,7 @@ class Behavior(pt.behaviour.Behaviour):
         self.world_interface = world_interface
         self.verbose = verbose
         self.negated = False
+        self.state = None
         self.parameters = parameters.copy()
         try:
             if parameters["not"]:
@@ -339,8 +340,7 @@ class Behavior(pt.behaviour.Behaviour):
 
     def check_negated(self, success):
         """ Handle whether the condition should be negated or not """
-        if self.negated and not success or \
-            not self.negated and success:
+        if (self.negated and not success or not self.negated and success) and (self.state == True or self.state == None):
             return pt.common.Status.SUCCESS
         return pt.common.Status.FAILURE
 
@@ -375,10 +375,18 @@ class ActionBehavior(Behavior):
             # if self.vlm_prompter.proactive:
             #     print("\nProactive check:\n")
             #     self.vlm_prompter.proactive_check()
-            # print("\nPrecondition verifier check:\n")
-            # self.vlm_prompter.precondition_verifier_check()
+
+            print("\nPrecondition verifier check:\n")
+            failed_precondition = self.vlm_prompter.precondition_verifier_check()
+            if failed_precondition is not None:
+                for condition in self.preconditions:
+                    if failed_precondition == condition.name:
+                        self.condition.state = False
+
             print("\nPrecondition suggestor check:\n")
-            # self.vlm_prompter.precondition_suggestor_check()
+            missing_precondition = self.vlm_prompter.precondition_suggestor_check()
+            if missing_precondition is not None:
+                self.preconditions.append(missing_precondition)
 
     @staticmethod
     def parse_parameters(node_descriptor):
@@ -415,9 +423,15 @@ class ActionBehavior(Behavior):
             if self.vlm_prompter.vlm_run:
                 self.end_hierarchical_summary()
                 # print("\nPostcondition verifier check:\n")
-                # self.vlm_prompter.postcondition_verifier_check()
+                failed_postcondition = self.vlm_prompter.postcondition_verifier_check()
+                if failed_postcondition is not None:
+                        for condition in self.postconditions:
+                            if failed_postcondition == condition.name:
+                                self.condition.state = False
                 print("\nPostcondition suggestor check:\n")
-                # self.vlm_prompter.postcondition_suggestor_check()
+                missing_postcondition = self.vlm_prompter.postcondition_suggestor_check()
+                if missing_postcondition is not None:
+                    self.postconditions.append(missing_postcondition)
         else:
             ActionBehavior.update(self)
         return self.state

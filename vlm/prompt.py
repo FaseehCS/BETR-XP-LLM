@@ -158,9 +158,10 @@ class VLMPrompter:
                 print(f"Precondition Verifier Check - Identification: {identification_result}")
                 print(f"Precondition Verifier Check - Correction: {correction_result}")
 
-            return False  # Preconditions not satisfied after corrections
+            feiled_condition = correction_result
+            return None #feiled_condition # Preconditions not satisfied after corrections
 
-        return True  # Preconditions satisfied
+        return None  # Preconditions satisfied
 
     def precondition_suggestor_check(self):
         """
@@ -184,9 +185,9 @@ class VLMPrompter:
                 print(f"Precondition Suggestor Check - Identification: {identification_result}")
                 print(f"Precondition Suggestor Check - Correction: {correction_result}")
 
-            return False  # New preconditions suggested
+            return None  # New preconditions suggested
 
-        return True  # No new preconditions are required
+        return None  # No new preconditions are required
 
     def postcondition_verifier_check(self):
         """
@@ -210,9 +211,11 @@ class VLMPrompter:
                 print(f"Postcondition Verifier Check - Identification: {identification_result}")
                 print(f"Postcondition Verifier Check - Correction: {correction_result}")
 
-            return False  # Postconditions not satisfied after corrections
+            failed_postcondition = correction_result
+            # return failed_postcondition  # Postconditions not satisfied after corrections
+            return None
 
-        return True  # Postconditions satisfied
+        return None  # Postconditions satisfied
 
     def postcondition_suggestor_check(self):
         """
@@ -236,9 +239,9 @@ class VLMPrompter:
                 print(f"Postcondition Suggestor Check - Identification: {identification_result}")
                 print(f"Postcondition Suggestor Check - Correction: {correction_result}")
 
-            return False  # New postconditions suggested
+            return None #False  # New postconditions suggested
 
-        return True  # No new postconditions are required
+        return None #True  # No new postconditions are required
 
     def update_inputs(self, images=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt"):
         """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
