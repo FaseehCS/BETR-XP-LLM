@@ -41,8 +41,8 @@ class KinectCamera(CameraBase):
     )
 
     def __init__(self,
-                position=(0.117, -0.038, 0.647),
-                orientation=(-2.326, 0.024, -1.574)):
+                position=(0.118, -0.034, 0.651),
+                orientation=(-2.337, 0.026, -1.571)):
         """
         ros2 run tf2_ros tf2_echo ORWorkStation_yumi_base_link ORWorkStation_yumi_rgb_camera_link
         - Translation: [0.117, -0.038, 0.647]
