@@ -39,6 +39,7 @@ from dataclasses import field
 from copy import deepcopy
 from enum import IntEnum
 import string
+import pickle
 import numpy as np
 from vlm.prompt import VLMPrompter
 import py_trees as pt
@@ -368,9 +369,10 @@ class ActionBehavior(Behavior):
         files = [f for f in os.listdir("./images") if f.endswith(".png")]
         self.world_interface.image_index = int(round(len(files))/2 + 1)
         self.vlm_prompter.query_index = self.world_interface.image_index
-        rgb_img, _, _ = self.world_interface.get_updated_image()
+        rgb_img, depth_img, _ = self.world_interface.get_updated_image()
         # path  = os.mkdir(f"./images/{self.name}_{self.world_interface.image_index}")
         cv2.imwrite(f"./images/{self.world_interface.image_index}_{self.name}_before.png", rgb_img)
+        np.save(f"./images/{self.world_interface.image_index}_{self.name}_depth_before.npy", depth_img)
 
         self.hierarchical_summary()
         if self.vlm_prompter.vlm_run:
@@ -422,24 +424,22 @@ class ActionBehavior(Behavior):
                 while not self.world_interface.has_stopped():
                     time.sleep(0.5)
                 self.world_interface.get_feedback()
-                rgb_img, _, _ = self.world_interface.get_updated_image()
+                rgb_img, depth_img, _ = self.world_interface.get_updated_image()
                 cv2.imwrite(f"./images/{self.world_interface.image_index}_{self.name}_after.png", rgb_img)
+                np.save(f"./images/{self.world_interface.image_index}_{self.name}_depth_after.npy", depth_img)
                 self.check_for_success()
-            if self.vlm_prompter.vlm_run:
                 self.end_hierarchical_summary()
-                # print("\nPostcondition verifier check:\n")
+            if self.vlm_prompter.vlm_run:
+                print("\nPostcondition verifier check:\n")
                 failed_postcondition = self.vlm_prompter.postcondition_verifier_check()
                 if failed_postcondition is not None:
                         for condition in self.postconditions:
                             if failed_postcondition == condition.name:
                                 self.condition.state = False
                 else:
-                    for condition in self.preconditions:
+                    for condition in self.postconditions:
                         condition.state = True
-                print("\nPostcondition suggestor check:\n")
-                missing_postcondition = self.vlm_prompter.postcondition_suggestor_check()
-                if missing_postcondition is not None:
-                    self.postconditions.append(missing_postcondition)
+
         else:
             ActionBehavior.update(self)
         return self.state
