@@ -14,7 +14,7 @@ class VLMPrompter:
 
     def __init__(
         self,
-        gpt_version="gpt-4o-mini",
+        gpt_version="gpt-4o",
         api_key=None,
         root_folder_path=None,
         task_name=None,
@@ -118,13 +118,16 @@ class VLMPrompter:
 
         # Detection
         self.proactive = False
+        self.check_type = "proactive_detection"
         detection_result = self.proactive_detection()
 
         if "No" in detection_result:
             # Identification
+            self.check_type = "proactive_identification"
             identification_result = self.proactive_identification()
 
             # Correction
+            self.check_type = "proactive_correction"
             correction_result = self.proactive_correction()
 
             if self.verbose:
@@ -144,13 +147,16 @@ class VLMPrompter:
         self.update_inputs()
 
         # Detection
+        self.check_type = "precondition_verifier_detection"
         detection_result = self.precondition_verifier_detection()
 
         if "No" in detection_result:
             # Identification
+            self.check_type = "precondition_verifier_identification"
             identification_result = self.precondition_verifier_identification()
 
             # Correction
+            self.check_type = "precondition_verifier_correction"
             correction_result = self.precondition_verifier_correction()
 
             if self.verbose:
@@ -171,13 +177,16 @@ class VLMPrompter:
         self.update_inputs()
 
         # Detection
+        self.check_type = "precondition_suggestor_detection"
         detection_result = self.precondition_suggestor_detection()
 
         if "Missing preconditions detected" in detection_result:
             # Identification
+            self.check_type = "precondition_suggestor_identification"
             identification_result = self.precondition_suggestor_identification()
 
             # Correction
+            self.check_type = "precondition_suggestor_correction"
             correction_result = self.precondition_suggestor_correction()
 
             if self.verbose:
@@ -197,13 +206,16 @@ class VLMPrompter:
         self.update_inputs()
 
         # Detection
+        self.check_type = "postcondition_verifier_detection"
         detection_result = self.postcondition_verifier_detection()
 
         if "No" in detection_result:
             # Identification
+            self.check_type = "postcondition_verifier_identification"
             identification_result = self.postcondition_verifier_identification()
 
             # Correction
+            self.check_type = "postcondition_verifier_correction"
             correction_result = self.postcondition_verifier_correction()
 
             if self.verbose:
@@ -225,13 +237,16 @@ class VLMPrompter:
         self.update_inputs()
 
         # Detection
+        self.check_type = "postcondition_suggestor_detection"
         detection_result = self.postcondition_suggestor_detection()
 
         if "No" in detection_result:
             # Identification
+            self.check_type = "postcondition_suggestor_identification"
             identification_result = self.postcondition_suggestor_identification()
 
             # Correction
+            self.check_type = "postcondition_suggestor_correction"
             correction_result = self.postcondition_suggestor_correction()
 
             if self.verbose:
@@ -245,7 +260,7 @@ class VLMPrompter:
 
     def update_inputs(self, images=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt"):
         """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
-        images = [os.path.join(self.task_dir, 'updated_image.png')]
+        images = [os.path.join("BETR-XP-LLM/detections", 'rgb.jpg')]
         file = os.path.join(self.resources, "skill_descriptions.json")
         self.skill_descriptions = self.read_json_file(file) if os.path.exists(file) else None
 
@@ -341,6 +356,13 @@ class VLMPrompter:
 
                 if save:
                     self.save_response(response, prompt, sampling_params, save_dir)
+                    restult= {
+                        "prompt": prompt,
+                        "response": response_text,
+                    }
+                    os.makedirs(f"./images/{self.query_index}", exist_ok=True)
+                    with open(os.path.join(f"./images/{self.query_index}", f"{self.check_type}_.json"), 'w') as f:
+                        json.dump(restult, f, indent=4)
 
                 return response_text
 
@@ -388,8 +410,8 @@ class VLMPrompter:
         user_prompt = user_prompt.replace("[SKILL-DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
         user_prompt = user_prompt.replace("[CONDITION-DESCRIPTIONS]", f"{self.skill_descriptions['conditions']}" or "")
         user_prompt = user_prompt.replace("[PLAN-EXECUTION]", self.plan_execution or "")
-        # user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
-        user_prompt = user_prompt.replace("[SCENE-GRAPH]", "Scene graph not available. Use the image for reference. Image is the ground truth. Analyze the image to identify spatial relationships.")
+        user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
+        # user_prompt = user_prompt.replace("[SCENE-GRAPH]", "Scene graph not available. Use the image for reference. Image is the ground truth. Analyze the image to identify spatial relationships.")
         user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", self.hierarchical_summary or "")
         user_prompt = user_prompt.replace("[IMAGES]", ", ".join(self.images) if self.images else "")
 
