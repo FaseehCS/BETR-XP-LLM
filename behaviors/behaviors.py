@@ -160,7 +160,7 @@ class Occupied(Behavior):
     @staticmethod
     def to_string(parameters):
         """ Creates a string """
-        node_string = parameters["target_object"] + " upright?"
+        node_string = parameters["target_object"] + " occupied?"
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
@@ -559,6 +559,298 @@ class Place(ActionBehavior):
         else:
             self.approach_position = self.release_position + np.array([0.0, 0.0, 0.05])#TODO move numbers to world_interface
 
+class Push(ActionBehavior):
+    """
+    Grasp an object
+    """
+    skill_name = "Pick"
+    description = "Picks up a specified object."
+
+    class PushStates(IntEnum):
+        """Define the internal states during execution."""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
+        name = Push.to_string(parameters)
+        self.target_object = None
+        self.grasp_position = None
+        self.approach_position = None
+        self.orientation = None
+        self.internal_state = self.PushStates.INIT
+        self.full_grasping_program = ''
+        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
+        postconditions = []
+        if world_interface.is_graspable(parameters["target_object"]) or parameters["target_object"] == '"any object"':
+            postconditions = []
+
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "push " + parameters["target_object"]
+        node_string += "!"
+        return node_string
+
+    @staticmethod
+    def check_string_match(node_string, _parameters):
+        """ Check if the string description of the node matches this node """
+        if "push " in node_string:
+            return True
+        return False
+
+    def initialise(self):
+        self.internal_state = self.PushStates.INIT
+        self.target_object = self.find_target_object()
+        ActionBehavior.initialise(self)
+
+    @staticmethod
+    def parse_parameters(node_descriptor):
+        """ Parse behavior parameters from string """
+        parameters = {}
+        n_marks = 4
+        marks = []
+        marks.append(node_descriptor.find('"'))
+        for i in range(1, n_marks):
+            if marks[i-1] >= 0:
+                marks.append(node_descriptor.find('"', marks[i-1] + 1))
+            else:
+                break
+
+        if len(marks) < 2:
+            print("Error, parameter parsing failed")
+            return None
+        
+        parameters["target_object"] = node_descriptor[marks[0]: marks[1] + 1]
+        if len(marks) >= 4:
+            parameters["relation"] = node_descriptor[marks[1] + 7: marks[2] - 1]
+            parameters["relative_object"] = node_descriptor[marks[2]: marks[3] + 1]
+
+        return parameters
+
+    def find_target_object(self):
+        """ Finds first target object from possible objects in world """
+        return self.parameters["target_object"]
+
+    def check_for_success(self):
+        """Check if object is grasped."""
+        # if self.world_interface.get_grasped_object() == self.target_object:
+        #     self.success()
+        return True
+
+    def check_for_failure(self):
+        """Fail if some other object is grasped."""
+        # grasped_object = self.world_interface.get_grasped_object()
+        # return grasped_object not in (self.target_object , None)
+        return False
+    
+    def execute(self):
+        """Executes behavior """
+        self.target_object = self.parameters["target_object"]
+        if self.check_for_failure():
+            return self.failure()
+        if self.internal_state == self.PushStates.INIT:
+            self.world_interface.stop()
+            self.internal_state = self.PushStates.WAITING_FOR_STOP
+            self.calc_grasp_position()
+            if self.grasp_position is None:
+                return self.failure()
+            self.calc_approach_position()
+
+            open_gripper_program = self.world_interface.get_open_gripper_program(no_wait=True)
+            approach_program = self.world_interface.move_joint(self.approach_position, self.orientation)
+            if approach_program is None:
+                return self.failure()
+            positioning_program = self.world_interface.move_linear(self.grasp_position, self.orientation, self.target_object)
+            if positioning_program is None:
+                return self.failure()
+            gripper_program = self.world_interface.get_close_gripper_program()
+
+            push_program = self.world_interface.move_linear(self.grasp_position + np.array([0.1, 0.0, 0.0]), self.orientation, self.target_object)
+            lift_program = self.world_interface.move_linear(self.grasp_position + np.array([0, -0.2, 0.15]), self.orientation, self.target_object)
+
+            self.full_grasping_program = self.world_interface.finalize_program(open_gripper_program +
+                                                                            approach_program +
+                                                                            positioning_program +
+                                                                            # gripper_program +
+                                                                            push_program +
+                                                                            lift_program)
+        if self.internal_state == self.PushStates.WAITING_FOR_STOP:
+            if self.world_interface.has_stopped():
+                if not self.world_interface.run_program(self.full_grasping_program):
+                    return self.failure()
+                self.world_interface.set_manipulation_target(self.target_object)
+                self.internal_state = self.PushStates.WAITING_FOR_START
+        if self.internal_state == self.PushStates.WAITING_FOR_START:
+            if self.world_interface.is_running():
+                self.internal_state = self.PushStates.RUNNING
+        if self.internal_state == self.PushStates.RUNNING:
+            if self.world_interface.has_stopped():
+                self.world_interface.set_grasped_object(self.target_object)
+                self.success()
+
+    def calc_grasp_position(self):
+        """Gets grasp position of object"""
+        self.grasp_position = self.world_interface.get_position(self.target_object) + np.array([-0.05, 0.0, -0.03])
+
+    def calc_approach_position(self):
+        """Gets approach position of object"""
+        self.approach_position = self.grasp_position + np.array([0.0, 0.0, 0.05]) #TODO move numbers to world_interface
+        if "cap" in self.target_object:
+            self.approach_position[2] += 0.02
+
+class Pull(ActionBehavior):
+    """
+    Grasp an object
+    """
+    skill_name = "Pick"
+    description = "Picks up a specified object."
+
+    class PullStates(IntEnum):
+        """Define the internal states during execution."""
+        INIT = 1
+        WAITING_FOR_STOP = 2
+        WAITING_FOR_START = 3
+        RUNNING = 4
+
+    def __init__(self, name, parameters, world_interface, vlm, verbose=False):
+        name = Pull.to_string(parameters)
+        self.target_object = None
+        self.grasp_position = None
+        self.approach_position = None
+        self.orientation = None
+        self.internal_state = self.PullStates.INIT
+        self.full_grasping_program = ''
+        preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
+        postconditions = []
+        if world_interface.is_graspable(parameters["target_object"]) or parameters["target_object"] == '"any object"':
+            postconditions = []
+
+        ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
+
+    @staticmethod
+    def to_string(parameters):
+        """ Creates a string """
+        node_string = "pull " + parameters["target_object"]
+        node_string += "!"
+        return node_string
+
+    @staticmethod
+    def check_string_match(node_string, _parameters):
+        """ Check if the string description of the node matches this node """
+        if "pull " in node_string:
+            return True
+        return False
+
+    def initialise(self):
+        self.internal_state = self.PullStates.INIT
+        self.target_object = self.find_target_object()
+        ActionBehavior.initialise(self)
+
+    @staticmethod
+    def parse_parameters(node_descriptor):
+        """ Parse behavior parameters from string """
+        parameters = {}
+        n_marks = 4
+        marks = []
+        marks.append(node_descriptor.find('"'))
+        for i in range(1, n_marks):
+            if marks[i-1] >= 0:
+                marks.append(node_descriptor.find('"', marks[i-1] + 1))
+            else:
+                break
+
+        if len(marks) < 2:
+            print("Error, parameter parsing failed")
+            return None
+        
+        parameters["target_object"] = node_descriptor[marks[0]: marks[1] + 1]
+        if len(marks) >= 4:
+            parameters["relation"] = node_descriptor[marks[1] + 7: marks[2] - 1]
+            parameters["relative_object"] = node_descriptor[marks[2]: marks[3] + 1]
+
+        return parameters
+
+    def find_target_object(self):
+        """ Finds first target object from possible objects in world """
+        if self.parameters["target_object"] == '"any object"':
+            if "relation" in self.parameters and "relative_object" in self.parameters:
+                for target_object in self.world_interface.movable_objects:
+                    if self.world_interface.object_at(target_object, self.parameters["relation"], self.parameters["relative_object"]):
+                        return target_object
+            return None
+        else:
+            return self.parameters["target_object"]
+
+    def check_for_success(self):
+        """Check if object is grasped."""
+        # if self.world_interface.get_grasped_object() == self.target_object:
+        #     self.success()
+        return True
+
+    def check_for_failure(self):
+        """Fail if some other object is grasped."""
+        # grasped_object = self.world_interface.get_grasped_object()
+        # return grasped_object not in (self.target_object , None)
+        return False
+    
+    def execute(self):
+        """Executes behavior """
+        if self.check_for_failure():
+            return self.failure()
+        if self.internal_state == self.PullStates.INIT:
+            self.world_interface.stop()
+            self.internal_state = self.PullStates.WAITING_FOR_STOP
+            self.calc_grasp_position()
+            if self.grasp_position is None:
+                return self.failure()
+            self.calc_approach_position()
+
+            open_gripper_program = self.world_interface.get_open_gripper_program(no_wait=True)
+            approach_program = self.world_interface.move_joint(self.approach_position, self.orientation)
+            if approach_program is None:
+                return self.failure()
+            positioning_program = self.world_interface.move_linear(self.grasp_position, self.orientation, self.target_object)
+            if positioning_program is None:
+                return self.failure()
+            gripper_program = self.world_interface.get_close_gripper_program()
+
+            pull_program = self.world_interface.move_linear(self.grasp_position + np.array([-0.06, 0.0, 0.0]), self.orientation, self.target_object)
+            lift_program = self.world_interface.move_linear(self.grasp_position + np.array([-0.06, 0.0, 0.08]), self.orientation, self.target_object)
+
+            self.full_grasping_program = self.world_interface.finalize_program(open_gripper_program +
+                                                                            approach_program +
+                                                                            positioning_program +
+                                                                            # gripper_program +
+                                                                            pull_program +
+                                                                            lift_program)
+        if self.internal_state == self.PullStates.WAITING_FOR_STOP:
+            if self.world_interface.has_stopped():
+                if not self.world_interface.run_program(self.full_grasping_program):
+                    return self.failure()
+                self.world_interface.set_manipulation_target(self.target_object)
+                self.internal_state = self.PullStates.WAITING_FOR_START
+        if self.internal_state == self.PullStates.WAITING_FOR_START:
+            if self.world_interface.is_running():
+                self.internal_state = self.PullStates.RUNNING
+        if self.internal_state == self.PullStates.RUNNING:
+            if self.world_interface.has_stopped():
+                self.world_interface.set_grasped_object(self.target_object)
+                self.success()
+
+    def calc_grasp_position(self):
+        """Gets grasp position of object"""
+        self.grasp_position = self.world_interface.get_position(self.target_object) + np.array([0.04, 0.0, 0.0])
+
+    def calc_approach_position(self):
+        """Gets approach position of object"""
+        self.approach_position = self.grasp_position + np.array([0.0, 0.0, 0.05]) #TODO move numbers to world_interface
+        if "cap" in self.target_object:
+            self.approach_position[2] += 0.02
+
 class MoveHome(ActionBehavior):
     """
     Moves arm to home position
@@ -817,4 +1109,4 @@ def get_condition_nodes():
 
 def get_action_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [Grasp, Place]
+    return [Grasp, Place, Push, Pull]
