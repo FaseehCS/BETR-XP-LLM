@@ -164,7 +164,7 @@ class Occupied(Behavior):
         return Behavior.common_string_rules(node_string, parameters)
 
     def update(self):
-        return self.check_negated(self.world_interface.is_object_upright(self.parameters["target_object"]))
+        return self.check_negated(self.world_interface.object_at("any object", "inside", self.parameters["target_object"]))
 
 class NearRobot(Behavior):
     """
@@ -197,7 +197,7 @@ class Opened(Behavior):
     Check if object is open
     """
     skill_name = "Opened"
-    description = "Check if object is opened"
+    description = "Check if object is opened e.g. Opened(Drawer), Opened(Microwave), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
         name = Opened.to_string(parameters)
@@ -277,6 +277,7 @@ class Grasp(ActionBehavior):
                                               "target_object": parameters["target_object"],
                                               "relation": relation,
                                               "relative_object": relative_object}, world_interface)]
+                postconditions += [Occupied('', {"not": True, "target_object": relative_object}, world_interface)]
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
 
     @staticmethod
@@ -350,6 +351,7 @@ class Grasp(ActionBehavior):
     
     def execute(self):
         """Executes behavior """
+        self.target_object = self.parameters["target_object"]
         if self.check_for_failure():
             return self.failure()
         if self.internal_state == self.GraspStates.INIT:
@@ -392,11 +394,11 @@ class Grasp(ActionBehavior):
 
     def calc_grasp_position(self):
         """Gets grasp position of object"""
-        self.grasp_position = self.world_interface.get_position(self.target_object)
+        self.grasp_position = self.world_interface.get_position(self.target_object) + np.array([0.0, 0.0, 0.11])
 
     def calc_approach_position(self):
         """Gets approach position of object"""
-        self.approach_position = self.grasp_position + np.array([0.0, 0.0, 0.05]) #TODO move numbers to world_interface
+        self.approach_position = self.grasp_position + np.array([0.0, 0.0, 0.09]) #TODO move numbers to world_interface
         if "cap" in self.target_object:
             self.approach_position[2] += 0.02
 
@@ -437,6 +439,9 @@ class Place(ActionBehavior):
             postconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
         elif self.target_object == '"grasped object"':
             postconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
+        if parameters["relation"] == "inside":
+            preconditions.append(Occupied('', {"not": True, "target_object": parameters["relative_object"]}, world_interface))
+            postconditions.append(Occupied('', {"target_object": parameters["relative_object"]}, world_interface))
         name = Place.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
 
@@ -531,7 +536,7 @@ class Place(ActionBehavior):
                                                                 self.release_position - np.array([0.0, 0.0, 0.02])) #TODO move numbers to world_interface
                 else:
                     self.world_interface.set_object_position(self.target_object,
-                                                                self.release_position - np.array([0.0, 0.0, 0.003])) #TODO move numbers to world_interface
+                                                                self.release_position - np.array([0.0, 0.0, 0.00])) #TODO move numbers to world_interface
                 self.success()
 
     def calc_release_position(self):
@@ -539,25 +544,26 @@ class Place(ActionBehavior):
         if self.parameters["relation"] == "on":
             relative_object_position = self.world_interface.get_position(self.parameters["relative_object"])
             if self.parameters["relative_object"] == '"table"':
-                self.release_position = relative_object_position + np.array([0.0, 0.0, self.world_interface.CUBE_SIZE / 2 + 0.003])
+                self.release_position = relative_object_position + np.array([-0.04, -0.45, 0.24])
             else:
-                self.release_position = relative_object_position + np.array([0.0, 0.0, self.world_interface.CUBE_SIZE + 0.003])#TODO move numbers to world_interface
+                self.release_position = relative_object_position + np.array([0.0, 0.0, 0.15])#TODO move numbers to world_interface
         elif self.parameters["relation"] == "inside":
+            self.world_interface.get_feedback()
             relative_object_position = self.world_interface.get_position(self.parameters["relative_object"])
             if relative_object_position is not None:
-                if self.parameters["relative_object"] == '"green box"' and self.world_interface.calculate_distance(self.parameters["relative_object"], self.hole_pose.position) < 0.03:
-                    self.release_position = self.world_interface.hole_pose.position + np.array([0.0, 0.0, 0.04])
+                if self.parameters["relative_object"] == "green box" and self.world_interface.calc_distance(self.parameters["relative_object"], self.world_interface.hole_pose.position) < 0.03:
+                    self.release_position = self.world_interface.hole_pose.position + np.array([0.0, -0.025, 0.18])
                 else:
-                    self.release_position = relative_object_position + np.array([0.01, 0.0, 0.04])
+                    self.release_position = relative_object_position + np.array([0.0, 0.0, 0.18])
         elif self.parameters["relation"] == "at" and isinstance(self.parameters["relative_object"], np.ndarray):
             self.release_position = self.parameters["relative_object"]
 
     def calc_place_approach_position(self):
         """Gets place approach position of object"""
         if self.parameters["relation"] == "inside" and self.parameters["relative_object"] == "green box":
-            self.approach_position = self.release_position + np.array([0.0, 0.0, 0.05])
+            self.approach_position = self.release_position + np.array([0.0, 0.0, 0.07])
         else:
-            self.approach_position = self.release_position + np.array([0.0, 0.0, 0.05])#TODO move numbers to world_interface
+            self.approach_position = self.release_position + np.array([0.0, 0.0, 0.1])#TODO move numbers to world_interface
 
 class Push(ActionBehavior):
     """
@@ -583,8 +589,8 @@ class Push(ActionBehavior):
         self.full_grasping_program = ''
         preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
         postconditions = []
-        if world_interface.is_graspable(parameters["target_object"]) or parameters["target_object"] == '"any object"':
-            postconditions = []
+        if "drawer" in parameters["target_object"]:
+            postconditions = [Opened('', {"not": True, "target_object": parameters["target_object"]}, world_interface)]
 
         ActionBehavior.__init__(self, name, parameters, world_interface, preconditions, postconditions, max_ticks=500, vlm_prompter=vlm, verbose=verbose)
 
@@ -691,10 +697,19 @@ class Push(ActionBehavior):
             if self.world_interface.has_stopped():
                 self.world_interface.set_grasped_object(self.target_object)
                 self.success()
+                
+    # def execute(self):
+    #     self.target_object = self.parameters["target_object"]
+    #     position = self.world_interface.get_position(self.target_object) + np.array([0.0, 0.0, 0.2])
+    #     push_program = self.world_interface.move_linear(position)
+    #     # push_program = self.world_interface.move_linear(np.array([-0.01, -0.3, 0.25]))
+    #     self.full_grasping_program = self.world_interface.finalize_program(push_program)
+    #     self.world_interface.run_program(self.full_grasping_program)
+        
 
     def calc_grasp_position(self):
         """Gets grasp position of object"""
-        self.grasp_position = self.world_interface.get_position(self.target_object) + np.array([-0.05, 0.0, -0.03])
+        self.grasp_position = self.world_interface.get_position(self.target_object) + np.array([-0.04, 0.0, 0.1])
 
     def calc_approach_position(self):
         """Gets approach position of object"""
@@ -725,7 +740,8 @@ class Pull(ActionBehavior):
         self.internal_state = self.PullStates.INIT
         self.full_grasping_program = ''
         preconditions = [Grasped('', {"not": True, "target_object": '"any object"'}, world_interface)]
-        postconditions = []
+        if "drawer" in parameters["target_object"]:
+            postconditions = [Opened('', {"target_object": parameters["target_object"]}, world_interface)]
         if world_interface.is_graspable(parameters["target_object"]) or parameters["target_object"] == '"any object"':
             postconditions = []
 
@@ -816,16 +832,18 @@ class Pull(ActionBehavior):
             positioning_program = self.world_interface.move_linear(self.grasp_position, self.orientation, self.target_object)
             if positioning_program is None:
                 return self.failure()
-            gripper_program = self.world_interface.get_close_gripper_program()
+            close_gripper_program = self.world_interface.get_close_gripper_program()
+            open_gripper_program = self.world_interface.get_open_gripper_program()
 
-            pull_program = self.world_interface.move_linear(self.grasp_position + np.array([-0.06, 0.0, 0.0]), self.orientation, self.target_object)
-            lift_program = self.world_interface.move_linear(self.grasp_position + np.array([-0.06, 0.0, 0.08]), self.orientation, self.target_object)
+            pull_program = self.world_interface.move_linear(self.grasp_position + np.array([-0.07, 0.0, 0.0]), self.orientation, self.target_object)
+            lift_program = self.world_interface.move_linear(self.grasp_position + np.array([-0.07, 0.0, 0.2]), self.orientation, self.target_object)
 
             self.full_grasping_program = self.world_interface.finalize_program(open_gripper_program +
                                                                             approach_program +
                                                                             positioning_program +
-                                                                            # gripper_program +
+                                                                            close_gripper_program +
                                                                             pull_program +
+                                                                            open_gripper_program +
                                                                             lift_program)
         if self.internal_state == self.PullStates.WAITING_FOR_STOP:
             if self.world_interface.has_stopped():
@@ -843,7 +861,7 @@ class Pull(ActionBehavior):
 
     def calc_grasp_position(self):
         """Gets grasp position of object"""
-        self.grasp_position = self.world_interface.get_position(self.target_object) + np.array([0.04, 0.0, 0.0])
+        self.grasp_position = self.world_interface.get_position(self.target_object) + np.array([0.0, 0.0, 0.09])
 
     def calc_approach_position(self):
         """Gets approach position of object"""
@@ -866,7 +884,7 @@ class MoveHome(ActionBehavior):
         RUNNING = 4
     def __init__(self, name, parameters, world_interface, vlm, verbose=False):
         name = MoveHome.to_string(parameters)
-        self.home_position = [0.45, -0.2, 0.2]
+        self.home_position = [-0.2, -0.4, 0.4]
         self.internal_state = self.MoveHomeStates.INIT
         self.full_homing_program = ''
         if "target_object" in parameters:
@@ -1104,7 +1122,7 @@ class OpenCentrifuge(ActionBehavior):
 
 def get_condition_nodes():
     """ Returns a list of all action nodes available for planning """
-    return [AtPos, Grasped, LocationKnown, Occupied]
+    return [AtPos, Grasped, LocationKnown, Occupied, Opened]
 
 
 def get_action_nodes():
