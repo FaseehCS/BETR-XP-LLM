@@ -133,9 +133,10 @@ class RWSPy:
         if "system" in ctr_servs:
             resp = self.client.call_api("/ctrl/system", "GET")
             if len(resp.data) != 0:
-                systems = self.get_states(resp.data)
-                for syst in systems:
-                    logger.info(f"\tController system :\t{syst['_title']}")
+                pass
+                # systems = self.get_states(resp.data)
+                # for syst in systems:
+                #     logger.info(f"\tController system :\t{syst['_title']}")
 
         if "identity" in ctr_servs:
             ctr_iden_resp = self.client.call_api("/ctrl/identity", "GET")
@@ -533,7 +534,7 @@ class RWSPy:
 
     def get_states(self, data: Dict):
         if self.cnf.rw_version == 7:
-            return data["state"]
+            return data['state']
         elif self.cnf.rw_version == 6:
             return data["_embedded"]["_state"]
         else:
