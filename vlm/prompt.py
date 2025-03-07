@@ -360,8 +360,8 @@ class VLMPrompter:
                         "prompt": prompt,
                         "response": response_text,
                     }
-                    os.makedirs(f"./images/{self.query_index}", exist_ok=True)
-                    with open(os.path.join(f"./images/{self.query_index}", f"{self.check_type}_.json"), 'w') as f:
+                    os.makedirs(f"{self.save_dir}", exist_ok=True)
+                    with open(os.path.join(f"{self.save_dir}", f"{self.check_type}_.json"), 'w') as f:
                         json.dump(restult, f, indent=4)
 
                 return response_text
