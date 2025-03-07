@@ -366,13 +366,14 @@ class ActionBehavior(Behavior):
         self.world_interface.get_feedback()
 
         # save images        
-        files = [f for f in os.listdir("./images") if f.endswith(".png")]
-        self.world_interface.image_index = int(round(len(files))/2 + 1)
-        self.vlm_prompter.query_index = self.world_interface.image_index
-        rgb_img, depth_img, _ = self.world_interface.get_updated_image()
-        # path  = os.mkdir(f"./images/{self.name}_{self.world_interface.image_index}")
-        cv2.imwrite(f"./images/{self.world_interface.image_index}_{self.name}_before.png", rgb_img)
-        np.save(f"./images/{self.world_interface.image_index}_{self.name}_depth_before.npy", depth_img)
+        if self.vlm_prompter.vlm_run:
+            self.world_interface.image_index = len(os.listdir("./data")) + 1
+            rgb_img, depth_img, _ = self.world_interface.get_updated_image()
+            save_dir = f"./data/{self.world_interface.image_index}_{self.name.replace('!', '')}"
+            self.vlm_prompter.save_dir = save_dir
+            os.mkdir(save_dir)
+            cv2.imwrite(f"{save_dir}/before.png", rgb_img)
+            np.save(f"{save_dir}/depth_before.npy", depth_img)
 
         self.hierarchical_summary()
         if self.vlm_prompter.vlm_run:
@@ -425,8 +426,10 @@ class ActionBehavior(Behavior):
                     time.sleep(0.5)
                 self.world_interface.get_feedback()
                 rgb_img, depth_img, _ = self.world_interface.get_updated_image()
-                cv2.imwrite(f"./images/{self.world_interface.image_index}_{self.name}_after.png", rgb_img)
-                np.save(f"./images/{self.world_interface.image_index}_{self.name}_depth_after.npy", depth_img)
+                if self.vlm_prompter.vlm_run:
+                    save_dir = f"./data/{self.world_interface.image_index}_{self.name.replace('!', '')}"
+                    cv2.imwrite(f"{save_dir}/after.png", rgb_img)
+                    np.save(f"{save_dir}/depth_after.npy", depth_img)
                 self.check_for_success()
                 self.end_hierarchical_summary()
             if self.vlm_prompter.vlm_run:
