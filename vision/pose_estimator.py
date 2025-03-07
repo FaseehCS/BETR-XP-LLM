@@ -128,7 +128,7 @@ def get_pose(plane, centroid, dominant_axis):
     
     return pose
 
-def estimate_pose(depth, mask=None, K=None, pointcloud=None):
+def estimate_pose(depth=None, mask=None, K=None, pointcloud=None):
 
     # We get the caps segmented point clouds
     if pointcloud is None:
@@ -145,4 +145,4 @@ def estimate_pose(depth, mask=None, K=None, pointcloud=None):
     # We get the poses
     pose = get_pose(plane, centroid, dominant_axis)
 
-    return pose
+    return pose, pointcloud
