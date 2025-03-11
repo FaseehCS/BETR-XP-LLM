@@ -21,7 +21,7 @@ class VLMPrompter:
         skill_descriptions=None,
         plan_execution=None,
         scene_graph="scene_graph.txt",
-        hierarchical_summary="hierarchical_summary.txt",
+        execution_history="execution_history.txt",
         images=None,
         failure_skill=None,
         failure_reason=None,
@@ -39,13 +39,14 @@ class VLMPrompter:
         self.verbose = verbose
         self.proactive = True
         self.vlm_run = vlm_run
+        self.img_failure = True
 
         # Task-specific directory
         self.task_dir = os.path.join(root_folder_path, task_name)
         os.makedirs(self.task_dir, exist_ok=True)
 
         # Reset hierarchical summary
-        with open(os.path.join(self.task_dir, hierarchical_summary), 'w') as f:
+        with open(os.path.join(self.task_dir, execution_history), 'w') as f:
             f.write("")
         with open(os.path.join(self.task_dir, "failure_skill.txt"), 'w') as f:
             f.write("")
@@ -60,6 +61,7 @@ class VLMPrompter:
             raise ValueError("Invalid or missing prompts JSON file.")
 
         # variables
+        self.skill_name = False
         self.skill_preconditions = False
         self.skill_postconditions = False
 
@@ -68,8 +70,8 @@ class VLMPrompter:
         file = os.path.join(self.resources, "skill_descriptions.json")
         self.skill_descriptions = self.read_json_file(file) if os.path.exists(file) else None
 
-        files = ["plan_execution", "scene_graph", "hierarchical_summary", "failure_skill", "failure_reason"]        
-        self.plan_execution, self.scene_graph, self.hierarchical_summary, \
+        files = ["plan", "scene_graph", "execution_history", "failure_skill", "failure_reason"]        
+        self.plan_execution, self.scene_graph, self.execution_history, \
             self.failure_skill, self.failure_reason = [self.read_file(os.path.join(self.resources, f + ".txt")) if os.path.exists(f) else None for f in files]
 
     @staticmethod
@@ -258,18 +260,20 @@ class VLMPrompter:
 
         return None #True  # No new postconditions are required
 
-    def update_inputs(self, images=None, scene_graph="scene_graph.txt", hierarchical_summary="hierarchical_summary.txt"):
+    def update_inputs(self, images=None, scene_graph="scene_graph.txt", execution_history="execution_history.txt"):
         """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
-        images = [os.path.join("BETR-XP-LLM/detections", 'rgb.jpg')]
+        # images = [os.path.join("BETR-XP-LLM/detections", 'rgb.jpg')]
+        images = [img for img in os.listdir(self.task_dir) if img.startswith("image")] if self.img_failure \
+            else [img for img in os.listdir(self.task_dir) if img.startswith("no_failure")]
         file = os.path.join(self.resources, "skill_descriptions.json")
         self.skill_descriptions = self.read_json_file(file) if os.path.exists(file) else None
 
         if images:
             self.images = [img for img in images if os.path.exists(img)]
 
-        files = ["plan.txt", scene_graph, hierarchical_summary, "failure_skill.txt", "failure_reason.txt"]
-        self.plan_execution, self.scene_graph, self.hierarchical_summary, \
-            self.failure_skill, self.failure_reason = [self.read_file(os.path.join(self.task_dir, f)) if os.path.exists(os.path.join(self.task_dir, f)) else None for f in files]
+        files = ["plan.txt", scene_graph, execution_history, "failure_skill.txt", "failure_reason.txt", "task_description.txt"]
+        self.plan_execution, self.scene_graph, self.execution_history, \
+            self.failure_skill, self.failure_reason, self.task_description = [self.read_file(os.path.join(self.task_dir, f)) if os.path.exists(os.path.join(self.task_dir, f)) else None for f in files]
 
     def extract_failure_skill(self, response):
         """Extracts the failure skill from the GPT response."""
@@ -307,11 +311,9 @@ class VLMPrompter:
         if self.images:
             for image_path in self.images:
                 try:
-                    # with open(image_path, 'rb') as img_file:
-                    #     image_bytes = img_file.read()
-                    #     image_files.append(("image", (os.path.basename(image_path), image_bytes)))
                     base64_image = encode_image(image_path)
-                    image_files.append(base64_image)
+                    img_prompt = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}", "detail": "high",},}
+                    image_files.append(img_prompt)
                 except Exception as e:
                     print(f"Error: Could not load image '{image_path}'. Exception: {e}")
                     continue
@@ -322,6 +324,9 @@ class VLMPrompter:
         # Fail-safe mechanism for retries
         max_retries = 5
         retry_count = 0
+        content = [{"type": "text", "text": prompt['user']}]
+        for img in image_files:
+            content.append(img)
 
         while retry_count < max_retries:
             try:
@@ -330,19 +335,15 @@ class VLMPrompter:
                         model=self.gpt_version,
                         messages=[
                             {"role": "system", "content": prompt['system']},
-                            {"role": "user", "content": [
-                                {"type": "text", "text": prompt['user']},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}", "detail": "high",},}
-                                ]},
+                            {"role": "user", "content": content},
                             ],
-                        # files=image_files,
                         **sampling_params
                     )
 
                 else:
                     response = openai.ChatCompletion.create(
                         model=self.gpt_version,
-                        messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": prompt}],
+                        messages=[{"role": "system", "content": prompt['system']}, {"role": "user", "content": prompt['user']}],
                         **sampling_params
                     )
 
@@ -404,15 +405,16 @@ class VLMPrompter:
         prompt = {}
         user_prompt = params["template-user"]
 
-        user_prompt = user_prompt.replace("[SKILL-NAME]", f"{self.skill_name}" or "")
-        user_prompt = user_prompt.replace("[SKILL-PRECONDITIONS]", f"{self.skill_preconditions}" or "")
-        user_prompt = user_prompt.replace("[SKILL-POSTCONDITIONS]", f"{self.skill_postconditions}" or "")
-        user_prompt = user_prompt.replace("[SKILL-DESCRIPTIONS]", f"{self.skill_descriptions['skills'][self.skill_name]}" or "")
+        user_prompt = user_prompt.replace("[TASK-DESCRIPTION]", f"{self.task_description}" or "")
+        user_prompt = user_prompt.replace("[SKILL-NAME]", f"{self.skill_name}" or "check last execution")
+        user_prompt = user_prompt.replace("[SKILL-PRECONDITIONS]", f"{self.skill_preconditions}" or "check last execution")
+        user_prompt = user_prompt.replace("[SKILL-POSTCONDITIONS]", f"{self.skill_postconditions}" or "check last execution")
+        user_prompt = user_prompt.replace("[SKILL-DESCRIPTIONS]", f"{self.skill_descriptions['skills']}" or "")
         user_prompt = user_prompt.replace("[CONDITION-DESCRIPTIONS]", f"{self.skill_descriptions['conditions']}" or "")
         user_prompt = user_prompt.replace("[PLAN-EXECUTION]", self.plan_execution or "")
         user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
         # user_prompt = user_prompt.replace("[SCENE-GRAPH]", "Scene graph not available. Use the image for reference. Image is the ground truth. Analyze the image to identify spatial relationships.")
-        user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", self.hierarchical_summary or "")
+        user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", self.execution_history or "")
         user_prompt = user_prompt.replace("[IMAGES]", ", ".join(self.images) if self.images else "")
 
         if include_failure_info:
