@@ -520,6 +520,7 @@ class Place(ActionBehavior):
                                                                             positioning_program +
                                                                             gripper_program +
                                                                             lift_program)
+            self.world_interface.add_edge(self.target_object, self.parameters["relative_object"], self.parameters["relation"])
         if self.internal_state == self.PlaceStates.WAITING_FOR_STOP:
             if self.world_interface.has_stopped():
                 if not self.world_interface.run_program(self.full_placing_program):
@@ -551,10 +552,10 @@ class Place(ActionBehavior):
             self.world_interface.get_feedback()
             relative_object_position = self.world_interface.get_position(self.parameters["relative_object"])
             if relative_object_position is not None:
-                if self.parameters["relative_object"] == "green box" and self.world_interface.calc_distance(self.parameters["relative_object"], self.world_interface.hole_pose.position) < 0.03:
-                    self.release_position = self.world_interface.hole_pose.position + np.array([0.0, -0.025, 0.18])
-                else:
-                    self.release_position = relative_object_position + np.array([0.0, 0.0, 0.18])
+                # if self.parameters["relative_object"] == "green box" and self.world_interface.calc_distance(self.parameters["relative_object"], self.world_interface.hole_pose.position) < 0.03:
+                #     self.release_position = self.world_interface.hole_pose.position + np.array([0.0, -0.025, 0.18])
+                # else:
+                self.release_position = relative_object_position + np.array([0.0, 0.0, 0.18])
         elif self.parameters["relation"] == "at" and isinstance(self.parameters["relative_object"], np.ndarray):
             self.release_position = self.parameters["relative_object"]
 
