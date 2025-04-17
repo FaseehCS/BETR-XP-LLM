@@ -5,6 +5,7 @@ from interfaces.base_world_interface import BaseWorldInterface
 from interfaces.realsense_world_interface import WorldInterface as AbbWorldInterface
 # from vision.kinect_camera import KinectCamera
 import open3d as o3d
+import scipy.spatial
 import torch
 # import vision.perception_utils as utils
 # import vision.k4a as k4a
@@ -13,7 +14,6 @@ import pickle
 import cv2
 import os
 import time
-from reflect.main.utils import get_pcd_dist, is_inside
 
 IMAGE_DIR = "BETR-XP-LLM/detections/"
 # =========  Parameters for spatial relation heuristics ============
@@ -30,7 +30,50 @@ BULKY_OBJECTS = ["green box", "green drawer"]
 OBJIGNORE = ["hole", "handle"]
 # ==================================================================
 
+def get_pcd_dist(pts_A, pts_B):
+    pcd_A = o3d.geometry.PointCloud()
+    pcd_A.points = o3d.utility.Vector3dVector(pts_A)
+    pcd_B = o3d.geometry.PointCloud()
+    pcd_B.points = o3d.utility.Vector3dVector(pts_B)
 
+    dists = pcd_A.compute_point_cloud_distance(pcd_B)
+    dist = np.min(np.array(dists))
+    return dist
+
+def in_hull(p, hull):
+    """
+    Test if points in `p` are in `hull`
+
+    `p` should be a `NxK` coordinates of `N` points in `K` dimensions
+    `hull` is either a scipy.spatial.Delaunay object or the `MxK` array of the 
+    coordinates of `M` points in `K`dimensions for which Delaunay triangulation
+    will be computed
+    """
+    if not isinstance(hull, scipy.spatial.Delaunay):
+        hull = scipy.spatial.Delaunay(hull)
+
+    return hull.find_simplex(p)>=0
+
+def is_inside(src_pts, target_pts, thresh=0.5):
+    try:
+        hull = scipy.spatial.ConvexHull(target_pts)
+    except:
+        return False
+    # print("vertices of hull: ", np.array(hull.vertices).shape)
+    hull_vertices = np.array([[0,0,0]])
+    for v in hull.vertices:
+        hull_vertices = np.vstack((hull_vertices, np.array([target_pts[v,0], target_pts[v,1], target_pts[v,2]])))
+    hull_vertices = hull_vertices[1:]
+
+    num_src_pts = len(src_pts)
+    # Don't want threshold to be too large (specially with more objects, like 4, 0.9*thresh becomes too large)
+    thresh_obj_particles = thresh * num_src_pts
+    src_points_in_hull = in_hull(src_pts, hull_vertices)
+    # print("src pts in target, thresh: ", src_points_in_hull.sum(), thresh_obj_particles)
+    if src_points_in_hull.sum() > thresh_obj_particles:
+        return True
+    else:
+        return False
 
 def gen_node(obj, pose, mask, pcd):
     name = obj
@@ -404,6 +447,11 @@ class WorldInterface(AbbWorldInterface):
                     self.object_positions[obj] = pose.position + np.array([0, 0, 0.02])
                     self.hole_pose = pose
              
+                # self.object_positions[obj] = pose.position
+                # self.object_positions["yellow box"] = [-0.09, -0.31, 0.11]
+                # self.object_positions["blue box"] = [-0.28, -0.31, 0.11]
+                # self.object_positions["green box"] = [-0.14, -0.445, 0.11]
+
         self.update_scene_graph_file()
         self.update_hierarchical_summary_file()
         
@@ -434,9 +482,9 @@ class WorldInterface(AbbWorldInterface):
                     for node in self.scene_graph.total_nodes:
                         if node.name == new_node.name:
                             self.scene_graph.total_nodes.remove(node)
-                    # for node in self.scene_graph.nodes:
-                    #     if node.name == new_node.name:
-                            # self.scene_graph.nodes.remove(node)
+                    for node in self.scene_graph.nodes:
+                        if node.name == new_node.name:
+                            self.scene_graph.nodes.remove(node)
 
                     self.scene_graph.add_node_wo_edge(new_node)
                     self.scene_graph.add_node(new_node)
@@ -480,3 +528,8 @@ class WorldInterface(AbbWorldInterface):
                     if self.scene_graph.edges[edge].edge_type == relation:
                         return True
         return False
+    
+    def add_edge(self, target_object, relative_object, relation):
+        """ Add edge to scene graph """
+        if (target_object, relative_object) not in self.scene_graph.edges.keys():
+            self.scene_graph.edges[(target_object, relative_object)] = Edge(target_object, relative_object, relation)
