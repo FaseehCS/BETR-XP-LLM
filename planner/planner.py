@@ -345,7 +345,7 @@ def plan(
         for goal in goals:
             tree.add_child(goal)
 
-    for i in range(20):
+    for i in range(40):
         if not handle_priority(tree, behaviors):
             break
         world_interface.get_feedback()
