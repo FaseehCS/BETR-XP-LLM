@@ -40,6 +40,9 @@ class VLMPrompter:
         self.proactive = True
         self.vlm_run = vlm_run
         self.img_failure = True
+        self.sg = True
+        self.history = True
+        self.no_images = 2
 
         # Task-specific directory
         self.task_dir = os.path.join(root_folder_path, task_name)
@@ -167,9 +170,9 @@ class VLMPrompter:
                 print(f"Precondition Verifier Check - Correction: {correction_result}")
 
             feiled_condition = correction_result
-            return None #feiled_condition # Preconditions not satisfied after corrections
+            return False #feiled_condition # Preconditions not satisfied after corrections
 
-        return None  # Preconditions satisfied
+        return True  # Preconditions satisfied
 
     def precondition_suggestor_check(self):
         """
@@ -196,9 +199,9 @@ class VLMPrompter:
                 print(f"Precondition Suggestor Check - Identification: {identification_result}")
                 print(f"Precondition Suggestor Check - Correction: {correction_result}")
 
-            return None  # New preconditions suggested
+            return False  # New preconditions suggested
 
-        return None  # No new preconditions are required
+        return True  # No new preconditions are required
 
     def postcondition_verifier_check(self):
         """
@@ -227,9 +230,9 @@ class VLMPrompter:
 
             failed_postcondition = correction_result
             # return failed_postcondition  # Postconditions not satisfied after corrections
-            return None
+            return False
 
-        return None  # Postconditions satisfied
+        return True  # Postconditions satisfied
 
     def postcondition_suggestor_check(self):
         """
@@ -260,11 +263,36 @@ class VLMPrompter:
 
         return None #True  # No new postconditions are required
 
+    def skill_suggestor_check(self):
+        """
+        Suggests new skills.
+        """
+        # Update dynamic inputs
+        self.update_inputs()
+
+        # Detection
+        self.check_type = "skill_suggestor_detection"
+        detection_result = self.skill_suggestor_detection()
+
+        if not "No skill needed" in detection_result:
+            if self.verbose:
+                print(f"skill Suggestor Check - Detection: {detection_result}")
+            # Identification
+            # self.check_type = "skill_generator"
+            # skill = self.skill_generator()
+            # with open(os.path.join(self.task_dir, "skill.py"), 'w') as f:
+            #     f.write(skill)
+
+            return False #False  # New skill suggested
+
+        return True #True  # No new skill are required
+
     def update_inputs(self, images=None, scene_graph="scene_graph.txt", execution_history="execution_history.txt"):
         """Updates dynamic inputs like images, scene graph, and hierarchical summary."""
         # images = [os.path.join("BETR-XP-LLM/detections", 'rgb.jpg')]
         images = [img for img in os.listdir(self.task_dir) if img.startswith("image")] if self.img_failure \
             else [img for img in os.listdir(self.task_dir) if img.startswith("no_failure")]
+        images = [os.path.join(self.task_dir, img) for img in images]
         file = os.path.join(self.resources, "skill_descriptions.json")
         self.skill_descriptions = self.read_json_file(file) if os.path.exists(file) else None
 
@@ -274,6 +302,19 @@ class VLMPrompter:
         files = ["plan.txt", scene_graph, execution_history, "failure_skill.txt", "failure_reason.txt", "task_description.txt"]
         self.plan_execution, self.scene_graph, self.execution_history, \
             self.failure_skill, self.failure_reason, self.task_description = [self.read_file(os.path.join(self.task_dir, f)) if os.path.exists(os.path.join(self.task_dir, f)) else None for f in files]
+            
+        if not self.sg:
+            self.execution_history = self.execution_history.split("\n")
+            self.execution_history = [line for line in self.execution_history if "Observation:" not in line]
+            self.execution_history = "\n".join(self.execution_history)
+        
+        if not self.proactive:
+            if self.skill_name == False:
+                self.skill_name = self.execution_history.split("|")[-2].split(":")[-1]
+            if self.skill_preconditions == False:
+                self.skill_preconditions = self.execution_history.split("|")[-1].split(":")[-1]
+            if self.skill_postconditions == False:
+                self.skill_postconditions = self.execution_history.split("|")[-1].split(":")[-1]
 
     def extract_failure_skill(self, response):
         """Extracts the failure skill from the GPT response."""
@@ -318,6 +359,9 @@ class VLMPrompter:
                     print(f"Error: Could not load image '{image_path}'. Exception: {e}")
                     continue
 
+        if self.no_images and len(image_files) > self.no_images:
+            image_files = image_files[:self.no_images]
+
         # if image_files and 'gpt-4o-mini' not in self.gpt_version:
         #     raise ValueError("The provided model does not support image input.")
 
@@ -355,7 +399,7 @@ class VLMPrompter:
                 # Save response to file
                 self.write_file(response_file, response_text)
 
-                if save:
+                if False: #save:
                     self.save_response(response, prompt, sampling_params, save_dir)
                     restult= {
                         "prompt": prompt,
@@ -405,16 +449,22 @@ class VLMPrompter:
         prompt = {}
         user_prompt = params["template-user"]
 
-        user_prompt = user_prompt.replace("[TASK-DESCRIPTION]", f"{self.task_description}" or "")
-        user_prompt = user_prompt.replace("[SKILL-NAME]", f"{self.skill_name}" or "check last execution")
-        user_prompt = user_prompt.replace("[SKILL-PRECONDITIONS]", f"{self.skill_preconditions}" or "check last execution")
-        user_prompt = user_prompt.replace("[SKILL-POSTCONDITIONS]", f"{self.skill_postconditions}" or "check last execution")
+        user_prompt = user_prompt.replace("[TASK-DESCRIPTION]", self.task_description or "")
+        user_prompt = user_prompt.replace("[SKILL-NAME]", self.skill_name or "")
+        user_prompt = user_prompt.replace("[SKILL-PRECONDITIONS]", self.skill_preconditions or "")
+        user_prompt = user_prompt.replace("[SKILL-POSTCONDITIONS]", self.skill_postconditions or "")
         user_prompt = user_prompt.replace("[SKILL-DESCRIPTIONS]", f"{self.skill_descriptions['skills']}" or "")
         user_prompt = user_prompt.replace("[CONDITION-DESCRIPTIONS]", f"{self.skill_descriptions['conditions']}" or "")
         user_prompt = user_prompt.replace("[PLAN-EXECUTION]", self.plan_execution or "")
-        user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
-        # user_prompt = user_prompt.replace("[SCENE-GRAPH]", "Scene graph not available. Use the image for reference. Image is the ground truth. Analyze the image to identify spatial relationships.")
-        user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", self.execution_history or "")
+        if self.sg:
+            user_prompt = user_prompt.replace("[SCENE-GRAPH]", self.scene_graph or "")
+        else:
+            user_prompt = user_prompt.replace("[SCENE-GRAPH]", "Scene graph not available. Use the image for reference. Image is the ground truth. Analyze the image to identify spatial relationships.")
+        user_prompt = user_prompt.replace("[KNOWN-OBJECT-LOCATIONS]", "" or "")
+        if self.history:
+            user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", self.execution_history or "")
+        else:
+            user_prompt = user_prompt.replace("[HIERARCHICAL-SUMMARY]", "No hierarchical summary available. Use the image and plan execution for reference.")
         user_prompt = user_prompt.replace("[IMAGES]", ", ".join(self.images) if self.images else "")
 
         if include_failure_info:
@@ -446,8 +496,8 @@ class VLMPrompter:
         params = self.prompts_json_file["preconditionsuggestor"]["template-detection"]
 
         prompt = self._populate_prompt(params, include_failure_info=False)
-        query_file = os.path.join(self.task_dir, "preconditions_detection_query.txt")
-        response_file = os.path.join(self.task_dir, "preconditions_detection_response.txt")
+        query_file = os.path.join(self.task_dir, "suggestor_detection_query.txt")
+        response_file = os.path.join(self.task_dir, "suggestor_detection_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
     def precondition_verifier_identification(self):
@@ -481,8 +531,8 @@ class VLMPrompter:
         params = self.prompts_json_file["preconditionsuggestor"]["template-identification"]
 
         prompt = self._populate_prompt(params, include_failure_info=True)
-        query_file = os.path.join(self.task_dir, "preconditions_identification_query.txt")
-        response_file = os.path.join(self.task_dir, "preconditions_identification_response.txt")
+        query_file = os.path.join(self.task_dir, "suggestor_identification_query.txt")
+        response_file = os.path.join(self.task_dir, "suggestor_identification_response.txt")
         response = self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
         failure_skill = self.extract_failure_skill(response)
@@ -530,8 +580,8 @@ class VLMPrompter:
         self.failure_reason = failure_reason
 
         prompt = self._populate_prompt(params, include_failure_info=True)
-        query_file = os.path.join(self.task_dir, "preconditions_correction_query.txt")
-        response_file = os.path.join(self.task_dir, "preconditions_correction_response.txt")
+        query_file = os.path.join(self.task_dir, "suggestor_correction_query.txt")
+        response_file = os.path.join(self.task_dir, "suggestor_correction_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
 
     # Postcondition methods
@@ -687,4 +737,24 @@ class VLMPrompter:
         prompt = self._populate_prompt(params, include_failure_info=True)
         query_file = os.path.join(self.task_dir, "proactive_correction_query.txt")
         response_file = os.path.join(self.task_dir, "proactive_correction_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+    def skill_suggestor_detection(self):
+        """Handles the suggestor detection functionality for postconditions."""
+
+        params = self.prompts_json_file["skillsuggestor"]["template-detection"]
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
+        query_file = os.path.join(self.task_dir, "skill_suggestor_query.txt")
+        response_file = os.path.join(self.task_dir, "skill_suggestor_response.txt")
+        return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
+
+    def skill_generator(self):
+        """Handles the suggestor detection functionality for postconditions."""
+
+        params = self.prompts_json_file["skillsuggestor"]["skill-generator"]
+
+        prompt = self._populate_prompt(params, include_failure_info=False)
+        query_file = os.path.join(self.task_dir, "skill_suggestor_query.txt")
+        response_file = os.path.join(self.task_dir, "skill_suggestor_response.txt")
         return self.query(prompt, params["params"], save=True, save_dir="./responses", query_file=query_file, response_file=response_file)
