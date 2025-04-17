@@ -520,7 +520,6 @@ class Place(ActionBehavior):
                                                                             positioning_program +
                                                                             gripper_program +
                                                                             lift_program)
-            self.world_interface.add_edge(self.target_object, self.parameters["relative_object"], self.parameters["relation"])
         if self.internal_state == self.PlaceStates.WAITING_FOR_STOP:
             if self.world_interface.has_stopped():
                 if not self.world_interface.run_program(self.full_placing_program):
