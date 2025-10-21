@@ -23,10 +23,10 @@ class Grasped(Behavior):
 
     @staticmethod
     def to_string(parameters):
-        return f'grasped {extract_name(parameters["object"])}?'
+        return f'grasped {extract_name(parameters["object"])} by {extract_name(parameters["arm_tag"])} arm?'
 
     def update(self):
-        return self.check_negated(self.world_interface.is_grasped(self.parameters["object"]))
+        return self.check_negated(self.world_interface.is_grasped(self.parameters["arm_tag"], self.parameters["object"]))
 
 class AtPos(Behavior):
     condition_name = "AtPos"
@@ -210,19 +210,20 @@ class Pick(ActionBehavior):
     skill_name = "Pick"
     description = "Pick up an object"
     def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
-        pre = [Grasped('', {"object": parameters["object"], "not": True}, world_interface),
+        pre = [Grasped('', {"object": parameters["object"], "arm_tag": "any", "not": True}, world_interface),
                AtPos('', {"object": parameters["object"], "pose": parameters.get("pick_pose")}, world_interface)]
-        post = [Grasped('', {"object": parameters["object"]}, world_interface)]
+        post = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
         name = Pick.to_string(parameters)
         super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
-    @staticmethod
-    def to_string(parameters):
-        return f"pick {extract_name(parameters['object'])}!"
+    def to_string(self, parameters):
+        self.action_string = f"pick {extract_name(parameters['object'])} with {extract_name(parameters['arm_tag'])} arm!"
+        return self.action_string
 
-    def execute(self):
-        self.world_interface.pick(self.parameters["object"], self.parameters.get("pick_pose"))
-        # VLA (String)
+    # def execute(self):
+    #     # self.world_interface.pick(self.parameters["object"], self.parameters.get("pick_pose"))
+    #     self.vla.generate_action(self.action_string)
+
 class MoveByDisplacement(ActionBehavior):
     skill_name = "MoveByDisplacement"
     description = "Move the grasped object by a relative displacement"
@@ -244,19 +245,17 @@ class Place(ActionBehavior):
     skill_name = "Place"
     description = "Place an object at a specified pose"
     def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
-        pre = [Grasped('', {"object": parameters["object"]}, world_interface),
-               AtPos('', {"object": parameters["object"], "pose": parameters["target_pose"]}, world_interface)]
-        post = [Grasped('', {"object": parameters["object"], "not": True}, world_interface),
+        pre = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
+        # If on and inside conditions and once decided. post += [new condition]
+        post = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"], "not": True}, world_interface),
                 AtPos('', {"object": parameters["object"], "pose": parameters["target_pose"]}, world_interface)]
         name = Place.to_string(parameters)
         super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
-    @staticmethod
-    def to_string(parameters):
-        return f"place {extract_name(parameters['object'])} at {parameters['target_pose']}!"
-
-    def execute(self):
-        self.world_interface.place(self.parameters["object"], self.parameters["target_pose"], keep_gripper_closed=self.parameters.get("keep_gripper_closed", False))
+    def to_string(self, parameters):
+        # if to decide whether place on, place inside, place to the left, place to the right, place away
+        self.action_string = f"place {extract_name(parameters['object'])} at {extract_name(parameters['target_pose'])} with {extract_name(parameters['arm_tag'])} arm!"
+        return self.action_string
 
 class Toggle(ActionBehavior):
     skill_name = "Toggle"
