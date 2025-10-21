@@ -530,6 +530,10 @@ class ActionBehavior(Behavior):
         """ Cleanup after stop """
         self.world_interface.set_manipulation_target(None)
 
+    def execute(self):
+        """ Execute the action behavior. To be implemented by child classes. """
+        self.vla.generate_action(self.action_string)
+    
 class ComparisonCondition(pt.behaviour.Behaviour):
     """Class template for conditions comparing against constants."""
 
