@@ -264,6 +264,11 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
         """Return the object currently grasped by the specified arm (if any)."""
         return self.grasped_object
 
+    def is_grasped(self, object_name):
+        """Check if the specified object is currently grasped."""
+        object_pose = self.object.get_pose().p
+        contact = self.get_gripper_actor_contact_position(self.selected_modelname_A)
+        return (object_pose[2] > 0.8 and len(contact) > 0)
     # def check_actors_contact(self, object_a, object_b):
     #     """Check if two objects/actors are in physical contact."""
     #     return self.check_actors_contact(object_a, object_b)
