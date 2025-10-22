@@ -47,7 +47,8 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
                     pass
                 continue
             
-        self.run_demo()
+        # self.run_demo()
+        self.actors = self.scene.get_all_actors()
 
     def create_args(self, task_name, task_config="demo_clean", seed=0, gripper_bias=0.16):
         
@@ -204,7 +205,10 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
     def get_object_pose(self, object_name):
         """Return the pose (position and orientation) of an object in the scene."""
         if hasattr(self, 'get_pose'):
-            return self.get_pose(object_name)
+            for actor in self.actors:
+                if actor.get_name() == "target_object":
+                    pose = actor.get_pose()
+                    return pose
         return None
 
     def get_robot_pose(self, arm='left'):
@@ -269,6 +273,28 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
         object_pose = self.object.get_pose().p
         contact = self.get_gripper_actor_contact_position(self.selected_modelname_A)
         return (object_pose[2] > 0.8 and len(contact) > 0)
+    
+    def object_at(self, target_object, relation, relative_object):
+        """ Check if object is at a specific location """
+        target_object_pose = self.get_object_pose(target_object)
+        relative_object_pose = self.get_object_pose(relative_object)
+
+        if relation == "on":
+            pass
+        elif relation == "inside":
+            pass
+
+        elif relation == "to_left_of" or relation == "to_right_of":
+            relative_pose = relative_object_pose.p.tolist()
+            relative_pose[0] -= 0.13 if relation == "to_left_of" else 0.13
+            distance = np.sqrt(np.sum((target_object_pose[:2] - relative_pose[:2])**2))
+            return np.all(distance < 0.2 and distance > 0.08 and target_object_pose[0] < relative_pose[0]
+                        and abs(target_object_pose[1] - relative_pose[1]) < 0.05 and self.robot.is_left_gripper_open()
+                        and self.robot.is_right_gripper_open())
+        
+    def get_all_objects(self):
+        return self.scene.get_all_actors()
+
     # def check_actors_contact(self, object_a, object_b):
     #     """Check if two objects/actors are in physical contact."""
     #     return self.check_actors_contact(object_a, object_b)
