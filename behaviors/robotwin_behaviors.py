@@ -41,7 +41,14 @@ class AtPos(Behavior):
         return f'{extract_name(parameters["object"])} at {parameters["pose"]}?'
 
     def update(self):
-        return self.check_negated(self.world_interface.at_pos(self.parameters["object"], self.parameters["pose"]))
+        target_object = self.parameters["object"]
+        relation = self.parameters["relation"]
+        relative_object = self.parameters["relative_object"]
+        if target_object == '"any object"':
+            object_at = False
+            return self.check_negated(object_at)
+        else:
+            return self.check_negated(self.world_interface.object_at(target_object, relation, relative_object))
 
 class HeldByArm(Behavior):
     condition_name = "HeldByArm"
@@ -245,16 +252,24 @@ class Place(ActionBehavior):
     skill_name = "Place"
     description = "Place an object at a specified pose"
     def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+
         pre = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
-        # If on and inside conditions and once decided. post += [new condition]
-        post = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"], "not": True}, world_interface),
-                AtPos('', {"object": parameters["object"], "pose": parameters["target_pose"]}, world_interface)]
+        post = [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface),
+                AtPos('',{"object": parameters["object"], "relation": parameters["relation"], "relative_object": parameters["relative_object"]}, world_interface)]
+ 
+        # Default behavior if relation and relative_object are not defined
+        if not "relation" in parameters and not "relative_object" in parameters:
+            parameters["relation"] = "away"
+
         name = Place.to_string(parameters)
         super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
     def to_string(self, parameters):
-        # if to decide whether place on, place inside, place to the left, place to the right, place away
-        self.action_string = f"place {extract_name(parameters['object'])} at {extract_name(parameters['target_pose'])} with {extract_name(parameters['arm_tag'])} arm!"
+        # We have five action variants: place on, place inside, place away, place to the left of, place to the right of. Text needs to be generated accordingly.
+        if parameters["relation"] == "away":
+            self.action_string = f"place {extract_name(parameters['object'])} {parameters["relation"]} with {extract_name(parameters['arm_tag'])} arm!"
+        else:
+            self.action_string = f"place {extract_name(parameters['object'])} {parameters["relation"]} {extract_name(parameters['relative_object'])} with {extract_name(parameters['arm_tag'])} arm!"
         return self.action_string
 
 class Toggle(ActionBehavior):
