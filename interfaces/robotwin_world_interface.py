@@ -194,7 +194,7 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
     def get_scene_graph(self):
         """Return a scene graph or logical structure of the current world state."""
         # _base_task.py does not explicitly have a scene graph, but we can use now_obs as a base
-        # for now, return the current observation dictionary. 
+        # for now, return the current observation dictionary.
         return getattr(self, 'now_obs', {})
 
     # def get_scene_contact(self):
@@ -280,20 +280,52 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
         relative_object_pose = self.get_object_pose(relative_object)
 
         if relation == "on":
-            pass
+            object_pose = target_object_pose.p
+            scale_pose = relative_object_pose.p
+            distance_threshold = 0.035
+            distance = np.linalg.norm(np.array(scale_pose[:2]) - np.array(object_pose[:2]))
+            return (distance < distance_threshold and object_pose[2] > (scale_pose[2] - 0.01))
+
         elif relation == "inside":
-            pass
+            return np.sum(np.sqrt((target_object_pose.p - relative_object_pose.p)**2)) < 0.15
 
         elif relation == "to_left_of" or relation == "to_right_of":
             relative_pose = relative_object_pose.p.tolist()
             relative_pose[0] -= 0.13 if relation == "to_left_of" else 0.13
             distance = np.sqrt(np.sum((target_object_pose[:2] - relative_pose[:2])**2))
             return np.all(distance < 0.2 and distance > 0.08 and target_object_pose[0] < relative_pose[0]
-                        and abs(target_object_pose[1] - relative_pose[1]) < 0.05 and self.robot.is_left_gripper_open()
-                        and self.robot.is_right_gripper_open())
+                        and abs(target_object_pose[1] - relative_pose[1]) < 0.05)
         
     def get_all_objects(self):
         return self.scene.get_all_actors()
+    
+    def get_relation(self, target_object, relative_object):
+        target_object_pose = self.get_object_pose(target_object)
+        relative_object_pose = self.get_object_pose(relative_object)
+        target_object_pose_p = target_object_pose.p
+        relative_object_pose_p = relative_object_pose.p
+
+        distance_threshold = 0.035
+        distance = np.linalg.norm(np.array(relative_object_pose_p[:2]) - np.array(target_object_pose_p[:2]))
+        if (distance < distance_threshold and target_object_pose_p[2] > (relative_object_pose_p[2] - 0.01)):
+            return "on"
+
+        if np.sum(np.sqrt((target_object_pose_p - relative_object_pose_p)**2)) < 0.15:
+            return "inside"
+
+        relative_pose = relative_object_pose.p.tolist()
+
+        distance = np.sqrt(np.sum((target_object_pose[:2] - relative_pose[:2])**2))
+        if np.all(distance < 0.2 and distance > 0.08 and target_object_pose[0] < 0.13
+                    and distance < 0.2 and distance > 0.08 and target_object_pose[0] > 0
+                    and abs(target_object_pose[1] - relative_pose[1]) < 0.05):
+            return "to_left_of"
+        if np.all(distance < 0.2 and distance > 0.08 and target_object_pose[0] > -0.13
+                    and distance < 0.2 and distance > 0.08 and target_object_pose[0] < 0
+                    and abs(target_object_pose[1] - relative_pose[1]) < 0.05):
+            return "to_right_of"
+        
+        return None
 
     # def check_actors_contact(self, object_a, object_b):
     #     """Check if two objects/actors are in physical contact."""
