@@ -49,6 +49,12 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
             
         # self.run_demo()
         self.actors = self.scene.get_all_actors()
+        self.beat_count = defaultdict(int)
+        self.toggled = defaultdict(bool)
+
+        for actor in self.actors:
+            self.beat_count[actor.get_name()] = 0
+            self.toggled[actor.get_name()] = False
 
     def create_args(self, task_name, task_config="demo_clean", seed=0, gripper_bias=0.16):
         
@@ -151,11 +157,11 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
                 self._name_to_actor[name].append(actor)
 
     # Utility to get an actor by name
-    def _get_actor(self, object_name, all=False):
-        actors = self._name_to_actor.get(object_name, [])
-        if not actors:
-            return None
-        return actors if all else actors[0]
+    def _get_actor(self, object_name):
+        for actor in self.actors:
+            if actor.get_name() == object_name:
+                return actor
+        return None
     
     # === 1. ENVIRONMENT CONTROL ===
     def reset(self, config_kwargs=None):
@@ -326,6 +332,40 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
             return "to_right_of"
         
         return None
+    
+    def is_toggled(self, object_name):
+        return self.toggled[object_name]
+
+    def toggle_check(self, object_name):
+        """Check if the specified object is toggled (active)."""
+        actor = self._get_actor(object_name)
+
+        if object_name == "056_switch":
+            limit = self.actor.get_qlimits()[0]
+            return self.actor.get_qpos()[0] >= limit[1] - 0.05
+
+        actor_pose = actor.get_contact_point(0)[:3]
+        positions = self.get_gripper_actor_contact_position(object_name)
+        eps = [0.028, 0.028]
+        for position in positions:
+            if (np.all(np.abs(position[:2] - actor_pose[:2]) < eps) and abs(position[2] - actor_pose[2]) < 0.03):
+                self.stage_success_tag = True
+                return True
+        return False
+    
+    def is_beaten(self, object_name, tool, count=1):
+        """Check if the specified object has been struck by the tool a certain number of times."""
+        return self.beat_count[(object_name, tool)] >= count
+    
+    def beat_check(self, object_name, tool):
+        """Check if the specified object has been struck by the tool."""
+        actor = self._get_actor(object_name)
+        tool_actor = self._get_actor(tool)
+        tool_target_pose = tool_actor.get_functional_point(0, "pose").p
+        block_pose = actor.get_functional_point(1, "pose").p
+        eps = np.array([0.02, 0.02])
+        return np.all(abs(tool_target_pose[:2] - block_pose[:2]) < eps) and self.check_actors_contact(
+            tool_actor.get_name(), actor.get_name())
 
     # def check_actors_contact(self, object_a, object_b):
     #     """Check if two objects/actors are in physical contact."""
