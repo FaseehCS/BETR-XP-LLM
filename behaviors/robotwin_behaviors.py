@@ -228,7 +228,9 @@ class Pick(ActionBehavior):
         return self.action_string
 
     # def execute(self):
-    #     # self.world_interface.pick(self.parameters["object"], self.parameters.get("pick_pose"))
+    #     self.world_interface.pick(self.parameters["object"], self.parameters["arm_tag"])
+
+    # def execute_vla(self):
     #     self.vla.generate_action(self.action_string)
 
 class MoveByDisplacement(ActionBehavior):
@@ -271,6 +273,14 @@ class Place(ActionBehavior):
         else:
             self.action_string = f"place {extract_name(parameters['object'])} {parameters["relation"]} {extract_name(parameters['relative_object'])} with {extract_name(parameters['arm_tag'])} arm!"
         return self.action_string
+    
+    # def execute(self):
+    #     self.world_interface.place(
+    #         self.parameters["object"],
+    #         self.parameters["relation"],
+    #         self.parameters["relative_object"],
+    #         self.parameters["arm_tag"]
+    #     )
 
 class Toggle(ActionBehavior):
     skill_name = "Toggle"
@@ -308,7 +318,6 @@ class Beat(ActionBehavior):
         self.world_interface.beat(
             self.parameters["tool"],
             self.parameters["target"],
-            self.parameters.get("count", 1)
         )
 
 class Pour(ActionBehavior):
