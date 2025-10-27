@@ -4,7 +4,8 @@ from collections import defaultdict
 import numpy as np
 
 # robotwin imports
-from robotwin.collect_data import class_decorator, get_camera_config
+from robotwin.script.collect_data import class_decorator, get_camera_config
+from robotwin.envs.utils.action import ArmTag, Action
 import yaml
 import os
 import traceback
@@ -49,6 +50,11 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
             
         # self.run_demo()
         self.actors = self.scene.get_all_actors()
+        self.beat_count = defaultdict(int)
+        self.toggled = defaultdict(bool)
+
+        for actor in self.actors:
+            self.toggled[actor.get_name()] = False
 
     def create_args(self, task_name, task_config="demo_clean", seed=0, gripper_bias=0.16):
         
@@ -151,11 +157,11 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
                 self._name_to_actor[name].append(actor)
 
     # Utility to get an actor by name
-    def _get_actor(self, object_name, all=False):
-        actors = self._name_to_actor.get(object_name, [])
-        if not actors:
-            return None
-        return actors if all else actors[0]
+    def _get_actor(self, object_name):
+        for actor in self.actors:
+            if actor.get_name() == object_name:
+                return actor
+        return None
     
     # === 1. ENVIRONMENT CONTROL ===
     def reset(self, config_kwargs=None):
@@ -204,11 +210,10 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
      # === 3. OBJECT & GRIPPER STATE QUERIES ===
     def get_object_pose(self, object_name):
         """Return the pose (position and orientation) of an object in the scene."""
-        if hasattr(self, 'get_pose'):
-            for actor in self.actors:
-                if actor.get_name() == "target_object":
-                    pose = actor.get_pose()
-                    return pose
+        for actor in self.actors:
+            if actor.get_name() == object_name:
+                pose = actor.get_pose()
+                return pose
         return None
 
     def get_robot_pose(self, arm='left'):
@@ -268,14 +273,20 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
         """Return the object currently grasped by the specified arm (if any)."""
         return self.grasped_object
 
-    def is_grasped(self, object_name):
+    def is_grasped(self, arm_tag="any", object_name='"any object"'):
         """Check if the specified object is currently grasped."""
-        object_pose = self.object.get_pose().p
-        contact = self.get_gripper_actor_contact_position(self.selected_modelname_A)
+        object_pose = self.get_object_pose(object_name).p
+        contact = self.get_gripper_actor_contact_position(object_name)
         return (object_pose[2] > 0.8 and len(contact) > 0)
     
     def object_at(self, target_object, relation, relative_object):
         """ Check if object is at a specific location """
+        if target_object == '"any object"':
+            for obj in self.get_all_objects():
+                if self.object_at(obj.get_name(), relation, relative_object):
+                    return True
+            return False
+
         target_object_pose = self.get_object_pose(target_object)
         relative_object_pose = self.get_object_pose(relative_object)
 
@@ -326,6 +337,199 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
             return "to_right_of"
         
         return None
+    
+    def is_toggled(self, object_name):
+        return self.toggled[object_name]
+
+    def toggle_check(self, object_name):
+        """Check if the specified object is toggled (active)."""
+        actor = self._get_actor(object_name)
+
+        if object_name == "056_switch":
+            limit = self.actor.get_qlimits()[0]
+            return self.actor.get_qpos()[0] >= limit[1] - 0.05
+
+        actor_pose = actor.get_contact_point(0)[:3]
+        positions = self.get_gripper_actor_contact_position(object_name)
+        eps = [0.028, 0.028]
+        for position in positions:
+            if (np.all(np.abs(position[:2] - actor_pose[:2]) < eps) and abs(position[2] - actor_pose[2]) < 0.03):
+                self.stage_success_tag = True
+                return True
+        return False
+    
+    def is_beaten(self, object_name, tool, count=1):
+        """Check if the specified object has been struck by the tool a certain number of times."""
+        if (object_name, tool) not in self.beat_count.keys():
+            return False
+        return self.beat_count[(object_name, tool)] >= count
+    
+    def beat_check(self, object_name, tool):
+        """Check if the specified object has been struck by the tool."""
+        actor = self._get_actor(object_name)
+        tool_actor = self._get_actor(tool)
+        if hasattr(tool_actor, 'get_functional_point'):
+            tool_target_pose = tool_actor.get_functional_point(0, "pose").p
+        else:
+            tool_target_pose = tool_actor.get_pose().p
+        if hasattr(actor, 'get_functional_point'):
+            block_pose = actor.get_functional_point(1, "pose").p
+        else:
+            block_pose = actor.get_pose().p
+        eps = np.array([0.02, 0.02])
+        return np.all(abs(tool_target_pose[:2] - block_pose[:2]) < eps) and self.check_actors_contact(
+            tool_actor.get_name(), actor.get_name())
+    
+    def pick(self, target_object, arm_tag='any'):
+        """ Pick up the target object using the specified arm. """
+        # Determine which arm to use based on object's x position
+        target_object = self._get_actor(self.parameters["object"])
+        if arm_tag == "any":
+            arm_tag = ArmTag("right" if target_object.get_pose().p[0] > 0 else "left")
+        else:
+            arm_tag = ArmTag(arm_tag)
+
+        # Grasp the object with specified arm
+        self.move(self.grasp_actor(target_object, arm_tag=arm_tag, pre_grasp_dis=0.1))
+        # Lift the object upward by 0.1 meters along z-axis using arm movement
+        self.move(self.move_by_displacement(arm_tag=arm_tag, z=0.1, move_axis="arm"))
+
+    def place(self, target_object, relation, relative_object, arm_tag='any'):
+        """ Place the target object at the specified relation to the relative object using the specified arm. """
+        target_object = self._get_actor(target_object)
+        relative_object = self._get_actor(relative_object)
+
+        if arm_tag == "any":
+            arm_tag = ArmTag("left" if self.is_grasped("left", target_object) else "right")
+        else:
+            arm_tag = ArmTag(arm_tag)
+
+        if relation == "away":
+            # Move the object horizontally (right if right arm, left if left arm)
+            self.move(self.move_by_displacement(arm_tag, x=0.3 if arm_tag == "right" else -0.3))
+            # Open gripper to release the object
+            self.move(self.open_gripper(arm_tag))
+        
+        elif relation in ["to_left_of", "to_right_of"]:
+            target_pose = relative_object.get_pose().p.tolist()
+            target_pose[0] += 0.13 if relation == "to_right_of" else -0.13
+
+            # Place the object at the adjusted target position
+            self.move(self.place_actor(target_object, arm_tag=arm_tag, target_pose=target_pose))
+
+        elif relation == "on":
+            # Get the target pose from display stand's functional point
+            if hasattr(relative_object, 'get_functional_point'):
+                target_pose = relative_object.get_functional_point(0)
+            else:
+                target_pose = relative_object.get_pose()
+
+            # Place the object onto the display stand with free constraint
+            self.move(
+                self.place_actor(
+                    target_object,
+                    arm_tag=arm_tag,
+                    target_pose=target_pose,
+                    constrain="free",
+                    pre_dis=0.07,
+                ))
+            
+        elif relation == "inside":
+            # Get functional points of basket for placing
+            f0 = np.array(relative_object.get_functional_point(0))
+            f1 = np.array(relative_object.get_functional_point(1))
+            place_pose = (f0 if np.linalg.norm(f0[:2] - target_object.get_pose().p[:2])
+                        < np.linalg.norm(f1[:2] - target_object.get_pose().p[:2]) else f1)
+            place_pose[:2] = f0[:2] if place_pose is f0 else f1[:2]
+            place_pose[3:] = (-1, 0, 0, 0) if arm_tag == "left" else (0.05, 0, 0, 0.99)
+
+            # Place the toy car in the basket
+            self.move(self.place_actor(
+                target_object,
+                arm_tag=arm_tag,
+                target_pose=place_pose,
+                dis=0.02,
+                is_open=False,
+            ))
+
+            if not self.plan_success:
+                self.plan_success = True  # Try new way
+                # Move up and away (recovery motion when plan fails)
+                place_pose[0] += -0.15 if arm_tag == "left" else 0.15
+                place_pose[2] += 0.15
+                self.move(self.move_to_pose(arm_tag=arm_tag, target_pose=place_pose))
+
+                # Lower down (recovery motion when plan fails)
+                place_pose[2] -= 0.05
+                self.move(self.move_to_pose(arm_tag=arm_tag, target_pose=place_pose))
+
+            # Open gripper to release object
+            self.move(self.open_gripper(arm_tag=arm_tag))
+
+    def toggle(self, object_name, arm_tag='any'):
+        """ Toggle the specified object using the specified arm. """
+        target_object = self._get_actor(object_name)
+        if target_object is None:
+            return
+
+        # Move the gripper above the top center of the alarm clock and close the gripper to simulate a click
+        # Note: although the code structure resembles a grasp, it is used here to simulate a touch/click action
+        # You can adjust API parameters to move above the top button and close the gripper (similar to grasp_actor)
+        self.move((
+            ArmTag(arm_tag),
+            [
+                Action(
+                    arm_tag,
+                    "move",
+                    self.get_grasp_pose(target_object, pre_dis=0.1, contact_point_id=0, arm_tag=arm_tag)[:3] +
+                    [0.5, -0.5, 0.5, 0.5],
+                ),
+                Action(arm_tag, "close", target_gripper_pos=0.0),
+            ],
+        ))
+    
+        # Move the gripper downward to press the top button of the alarm clock
+        self.move(self.move_by_displacement(arm_tag, z=-0.065))
+
+        if self.toggle_check(object_name):
+            self.toggled[object_name] = not self.toggled[object_name]
+
+            # Move the gripper back to the original height (not lifting the alarm clock)
+            self.move(self.move_by_displacement(arm_tag, z=0.065))
+
+    def beat(self, tool, object_name, arm_tag='any'):
+        """ Strike the specified object with the tool using the specified arm. """
+        target_object = self._get_actor(object_name)
+        target_pose = target_object.get_functional_point(1, "pose") if hasattr(target_object, 'get_functional_point') else target_object.get_pose()
+        tool_actor = self._get_actor(tool)
+        if target_object is None or tool_actor is None:
+            return
+
+        if arm_tag == "any":
+            arm_tag = ArmTag("right" if self.is_grasped("right", tool_actor) else "left")
+        else:
+            arm_tag = ArmTag(arm_tag)
+
+        # Move the tool above the target object
+        self.move(
+            self.place_actor(
+                tool_actor,
+                target_pose=target_pose,
+                arm_tag=arm_tag,
+                functional_point_id=0,
+                pre_dis=0.06,
+                dis=0,
+                is_open=False,
+            ))
+        
+        if self.beat_check(object_name, tool):
+            if (object_name, tool) not in self.beat_count.keys():
+                self.beat_count[(object_name, tool)] = 1
+            else:
+                self.beat_count[(object_name, tool)] += 1
+
+            # Lift the tool upward after striking
+            self.move(self.move_by_displacement(arm_tag, z=0.065))
 
     # def check_actors_contact(self, object_a, object_b):
     #     """Check if two objects/actors are in physical contact."""
