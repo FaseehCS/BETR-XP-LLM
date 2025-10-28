@@ -4,7 +4,7 @@ from enum import IntEnum
 from behaviors.common_behaviors import Behavior, ActionBehavior
 import py_trees as pt
 
-from interfaces.robotwin_world_interface import RobotwinWorldInterface
+from interfaces.robotwin_world_interface import WorldInterface
 
 def extract_name(object_id):
     if object_id is None:
@@ -17,7 +17,7 @@ class Grasped(Behavior):
     condition_name = "Grasped"
     description = "Check if the object is currently held by the robot."
 
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = Grasped.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
@@ -32,7 +32,7 @@ class AtPos(Behavior):
     condition_name = "AtPos"
     description = "Check if object is at given pose."
 
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = AtPos.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
@@ -54,7 +54,7 @@ class HeldByArm(Behavior):
     condition_name = "HeldByArm"
     description = "Check if object is held by specified arm."
 
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = HeldByArm.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
@@ -69,7 +69,7 @@ class ContentsIn(Behavior):
     condition_name = "ContentsIn"
     description = "Check if contents are in the given container."
 
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = ContentsIn.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
@@ -84,7 +84,7 @@ class BothArmsFree(Behavior):
     condition_name = "BothArmsFree"
     description = "Check if both arms are free (not holding anything)."
 
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = "both arms free?"
         super().__init__(name, parameters, world_interface)
 
@@ -94,7 +94,7 @@ class BothArmsFree(Behavior):
 class Toggled(Behavior):
     condition_name = "Toggled"
     description = "Check if the object has been toggled (e.g., button pressed/clicked)."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = Toggled.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
@@ -108,7 +108,7 @@ class Toggled(Behavior):
 class Beaten(Behavior):
     condition_name = "Beaten"
     description = "Check if the object has been beaten by a tool enough times."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = Beaten.to_string(parameters)
         super().__init__(name, parameters, world_interface)
     @staticmethod
@@ -129,7 +129,7 @@ class Beaten(Behavior):
 class Hung(Behavior):
     condition_name = "Hung"
     description = "Check if the object is hanging from the target (e.g., a rack)."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = Hung.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
@@ -143,7 +143,7 @@ class Hung(Behavior):
 class Opened(Behavior):
     condition_name = "Opened"
     description = "Check if the object is open (for articulated objects)."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = Opened.to_string(parameters)
         super().__init__(name, parameters, world_interface)
     @staticmethod
@@ -155,7 +155,7 @@ class Opened(Behavior):
 class Scanned(Behavior):
     condition_name = "Scanned"
     description = "Check if the object has been scanned by the scanner."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = Scanned.to_string(parameters)
         super().__init__(name, parameters, world_interface)
     @staticmethod
@@ -167,7 +167,7 @@ class Scanned(Behavior):
 class Shaken(Behavior):
     condition_name = "Shaken"
     description = "Check if the object has been shaken (enough times, in the correct way)."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = Shaken.to_string(parameters)
         super().__init__(name, parameters, world_interface)
     @staticmethod
@@ -190,7 +190,7 @@ class Shaken(Behavior):
 class On(Behavior):
     condition_name = "On"
     description = "Check if one object is on top of another."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = On.to_string(parameters)
         super().__init__(name, parameters, world_interface)
     @staticmethod
@@ -202,7 +202,7 @@ class On(Behavior):
 class Stamped(Behavior):
     condition_name = "Stamped"
     description = "Check if the stamp has been stamped on the target."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, _verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
         name = Stamped.to_string(parameters)
         super().__init__(name, parameters, world_interface)
     @staticmethod
@@ -216,7 +216,7 @@ class Stamped(Behavior):
 class Pick(ActionBehavior):
     skill_name = "Pick"
     description = "Pick up an object"
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [Grasped('', {"object": parameters["object"], "arm_tag": "any", "not": True}, world_interface),
                AtPos('', {"object": parameters["object"], "pose": parameters.get("pick_pose")}, world_interface)]
         post = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
@@ -227,8 +227,8 @@ class Pick(ActionBehavior):
         self.action_string = f"pick {extract_name(parameters['object'])} with {extract_name(parameters['arm_tag'])} arm!"
         return self.action_string
 
-    # def execute(self):
-    #     self.world_interface.pick(self.parameters["object"], self.parameters["arm_tag"])
+    def execute(self):
+        self.world_interface.pick(self.parameters["object"], self.parameters["arm_tag"])
 
     # def execute_vla(self):
     #     self.vla.generate_action(self.action_string)
@@ -236,7 +236,7 @@ class Pick(ActionBehavior):
 class MoveByDisplacement(ActionBehavior):
     skill_name = "MoveByDisplacement"
     description = "Move the grasped object by a relative displacement"
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [Grasped('', {"object": parameters["object"]}, world_interface)]
         post = [Grasped('', {"object": parameters["object"]}, world_interface),
                 AtPos('', {"object": parameters["object"], "pose": parameters["target_pose"]}, world_interface)]
@@ -253,7 +253,7 @@ class MoveByDisplacement(ActionBehavior):
 class Place(ActionBehavior):
     skill_name = "Place"
     description = "Place an object at a specified pose"
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
 
         pre = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
         post = [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface),
@@ -269,9 +269,9 @@ class Place(ActionBehavior):
     def to_string(self, parameters):
         # We have five action variants: place on, place inside, place away, place to the left of, place to the right of. Text needs to be generated accordingly.
         if parameters["relation"] == "away":
-            self.action_string = f"place {extract_name(parameters['object'])} {parameters["relation"]} with {extract_name(parameters['arm_tag'])} arm!"
+            self.action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} with {extract_name(parameters['arm_tag'])} arm!"
         else:
-            self.action_string = f"place {extract_name(parameters['object'])} {parameters["relation"]} {extract_name(parameters['relative_object'])} with {extract_name(parameters['arm_tag'])} arm!"
+            self.action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} {extract_name(parameters['relative_object'])} with {extract_name(parameters['arm_tag'])} arm!"
         return self.action_string
     
     # def execute(self):
@@ -285,7 +285,7 @@ class Place(ActionBehavior):
 class Toggle(ActionBehavior):
     skill_name = "Toggle"
     description = "Toggle (press/click) an object with the gripper (requires empty gripper)."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [Grasped('', {"object": None}, world_interface)]
         post = [Toggled('', {"object": parameters["object"]}, world_interface)]
         name = Toggle.to_string(parameters)
@@ -301,7 +301,7 @@ class Toggle(ActionBehavior):
 class Beat(ActionBehavior):
     skill_name = "Beat"
     description = "Beat or tap an object with a tool (possibly multiple times)."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [Grasped('', {"object": parameters["tool"]}, world_interface)]
         post = [Beaten('', {
             "target": parameters["target"],
@@ -323,7 +323,7 @@ class Beat(ActionBehavior):
 class Pour(ActionBehavior):
     skill_name = "Pour"
     description = "Pour contents from one container into another."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [Grasped('', {"object": parameters["from"]}, world_interface)]
         post = [ContentsIn('', {"content": parameters["content"], "container": parameters["to"]}, world_interface)]
         name = Pour.to_string(parameters)
@@ -339,7 +339,7 @@ class Pour(ActionBehavior):
 class GrabTogether(ActionBehavior):
     skill_name = "GrabTogether"
     description = "Use both arms to grab an object together."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [BothArmsFree('', {}, world_interface)]
         post = [HeldByArm('', {"object": parameters["object"], "arm": "both"}, world_interface)]
         name = GrabTogether.to_string(parameters)
@@ -355,7 +355,7 @@ class GrabTogether(ActionBehavior):
 class Handover(ActionBehavior):
     skill_name = "Handover"
     description = "Pass an object from one arm to another."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [HeldByArm('', {"object": parameters["object"], "arm": parameters["from_arm"]}, world_interface)]
         post = [HeldByArm('', {"object": parameters["object"], "arm": parameters["to_arm"]}, world_interface)]
         name = Handover.to_string(parameters)
@@ -371,7 +371,7 @@ class Handover(ActionBehavior):
 class Hang(ActionBehavior):
     skill_name = "Hang"
     description = "Hang an object onto a target (e.g., rack, hook)."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         # Assumes object must be grasped, and at the hanging pose
         pre = [
             Grasped('', {"object": parameters["object"]}, world_interface),
@@ -387,7 +387,7 @@ class Hang(ActionBehavior):
 class Open(ActionBehavior):
     skill_name = "Open"
     description = "Open an articulated object (e.g., laptop, microwave)."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [Grasped('', {"object": parameters["object"]}, world_interface)]
         post = [Opened('', {"object": parameters["object"]}, world_interface)]
         name = Open.to_string(parameters)
@@ -452,7 +452,7 @@ class Shake(ActionBehavior):
 class Stamp(ActionBehavior):
     skill_name = "Stamp"
     description = "Stamp a target with a stamp."
-    def __init__(self, name, parameters, world_interface: RobotwinWorldInterface, vlm=None, verbose=False):
+    def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
         pre = [Grasped('', {"object": parameters["stamp"]}, world_interface)]
         post = [Stamped('', {"stamp": parameters["stamp"], "target": parameters["target"]}, world_interface)]
         name = Stamp.to_string(parameters)

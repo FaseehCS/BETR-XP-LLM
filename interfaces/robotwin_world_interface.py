@@ -1,55 +1,55 @@
 from interfaces.base_world_interface import BaseWorldInterface
-from envs._base_task import Base_Task
 from collections import defaultdict
 import numpy as np
 
 # robotwin imports
-from robotwin.script.collect_data import class_decorator, get_camera_config
-from robotwin.envs.utils.action import ArmTag, Action
+from envs._base_task import Base_Task
+from envs import *
+from script.collect_data import class_decorator, get_camera_config
+from envs.utils.action import ArmTag, Action
 import yaml
 import os
 import traceback
 
 
 TASK_NAME = "pick_obj"   # This is known. Basically we can get from runtime file
-DEMO = class_decorator(TASK_NAME)
 
-class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name use the Base_Task implementation
-    def __init__(self, task_name=TASK_NAME, task_config="demo_clean", seed=0, gripper_bias=0.16, movable_objects=None, graspable_objects=None, table_offset=0, config_kwargs=None):
+class WorldInterface(BaseWorldInterface): # Methods with same name use the Base_Task implementation
+    def __init__(self, task_name=TASK_NAME, task_config="demo_clean", seed=0, gripper_bias=0.16, movable_objects=None, graspable_objects=None, table_offset=0):
         super().__init__(
             cfree_interface=None,
             movable_objects=movable_objects,
             graspable_objects=graspable_objects,
             table_offset=table_offset,
         )
-        # self = Base_Task()
-        self._init_task_env_(**(config_kwargs or {}))
-        self._build_name_to_actor()
+
+        self.demo = class_decorator(task_name)
         self.grasped_object = None
         self.manipulation_target = None
-        
+
         # Create robotwin environment
-        self.args = self.create_args(self, task_name, task_config, seed, gripper_bias)
+        self.args = self.create_args(task_name, task_config, seed, gripper_bias)
         for i in range(seed, seed + 3):
             try:
                 self.args["seed"] = seed
-                self.setup_demo(**self.args)
+                self.demo.setup_demo(**self.args)
                 break
             except Exception as e:
                 if i == seed + 2:
                     continue
-                print(f"Failed to create demo for task {self.task_name}: {e}")
+                print(f"Failed to create demo for task {task_name}: {e}")
                 traceback.print_exc()
                 try:
                     if self.args["render_freq"]:
-                        self.close_env()
-                        self.viewer.close()
+                        self.demo.close_env()
+                        self.demo.viewer.close()
                 except:
                     pass
                 continue
             
         # self.run_demo()
-        self.actors = self.scene.get_all_actors()
+        self.actors = self.demo.scene.get_all_actors()
+        self._build_name_to_actor()
         self.beat_count = defaultdict(int)
         self.toggled = defaultdict(bool)
 
@@ -130,8 +130,8 @@ class RobotwinWorldInterface(DEMO, BaseWorldInterface): # Methods with same name
 
         print(f"Running task: {self.task_name}")
         success = False
-        self.play_once() # if you want to run the task
-        if self.plan_success and self.check_success():
+        self.demo.play_once() # if you want to run the task
+        if self.demo.plan_success and self.demo.check_success():
             print(f"simulate {self.task_name} success!")
             success = True
         else:
