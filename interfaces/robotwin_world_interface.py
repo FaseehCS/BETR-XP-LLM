@@ -383,7 +383,7 @@ class WorldInterface(BaseWorldInterface): # Methods with same name use the Base_
     def pick(self, target_object, arm_tag='any'):
         """ Pick up the target object using the specified arm. """
         # Determine which arm to use based on object's x position
-        target_object = self._get_actor(self.parameters["object"])
+        target_object = self._get_actor(target_object)
         if arm_tag == "any":
             arm_tag = ArmTag("right" if target_object.get_pose().p[0] > 0 else "left")
         else:
