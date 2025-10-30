@@ -10,29 +10,29 @@ from envs.utils.action import ArmTag, Action
 import yaml
 import os
 import traceback
+import importlib
 
-
-TASK_NAME = "pick_obj"   # This is known. Basically we can get from runtime file
-
-class WorldInterface(BaseWorldInterface): # Methods with same name use the Base_Task implementation
-    def __init__(self, task_name=TASK_NAME, task_config="demo_clean", seed=0, gripper_bias=0.16, movable_objects=None, graspable_objects=None, table_offset=0):
+class WorldInterface(BaseWorldInterface):
+    def __init__(self, task_name="beat_block_hammer", task_config="demo_clean", seed=0, gripper_bias=0.16, movable_objects=None, graspable_objects=None, table_offset=0):
+        # Dynamically import the task-specific environment class
+        envs_module = importlib.import_module(f"envs.{task_name}")
+        env_class = getattr(envs_module, task_name)
+        
+        # Initialize BaseWorldInterface first
         super().__init__(
             cfree_interface=None,
             movable_objects=movable_objects,
             graspable_objects=graspable_objects,
             table_offset=table_offset,
         )
-
-        self.demo = class_decorator(task_name)
-        self.grasped_object = None
-        self.manipulation_target = None
+        self.__class__ = type(self.__class__.__name__, (WorldInterface, env_class), {})
 
         # Create robotwin environment
         self.args = self.create_args(task_name, task_config, seed, gripper_bias)
         for i in range(seed, seed + 3):
             try:
                 self.args["seed"] = seed
-                self.demo.setup_demo(**self.args)
+                self.setup_demo(**self.args)
                 break
             except Exception as e:
                 if i == seed + 2:
@@ -41,14 +41,14 @@ class WorldInterface(BaseWorldInterface): # Methods with same name use the Base_
                 traceback.print_exc()
                 try:
                     if self.args["render_freq"]:
-                        self.demo.close_env()
-                        self.demo.viewer.close()
+                        self.close_env()
+                        self.viewer.close()
                 except:
                     pass
                 continue
             
         # self.run_demo()
-        self.actors = self.demo.scene.get_all_actors()
+        self.actors = self.scene.get_all_actors()
         self._build_name_to_actor()
         self.beat_count = defaultdict(int)
         self.toggled = defaultdict(bool)
@@ -90,6 +90,14 @@ class WorldInterface(BaseWorldInterface): # Methods with same name use the Base_
         else:
             raise "number of embodiment config parameters should be 1 or 3"
 
+        def get_embodiment_config(robot_file, gripper_bias=None):
+            robot_config_file = os.path.join(robot_file, "config.yml")
+            with open(robot_config_file, "r", encoding="utf-8") as f:
+                embodiment_args = yaml.load(f.read(), Loader=yaml.FullLoader)
+            if gripper_bias is not None:
+                embodiment_args["gripper_bias"] = gripper_bias
+            return embodiment_args
+
         args["left_embodiment_config"] = get_embodiment_config(args["left_robot_file"], gripper_bias=gripper_bias)
         args["right_embodiment_config"] = get_embodiment_config(args["right_robot_file"], gripper_bias=gripper_bias)
 
@@ -130,8 +138,8 @@ class WorldInterface(BaseWorldInterface): # Methods with same name use the Base_
 
         print(f"Running task: {self.task_name}")
         success = False
-        self.demo.play_once() # if you want to run the task
-        if self.demo.plan_success and self.demo.check_success():
+        self.play_once() # if you want to run the task
+        if self.plan_success and self.check_success():
             print(f"simulate {self.task_name} success!")
             success = True
         else:
@@ -172,8 +180,6 @@ class WorldInterface(BaseWorldInterface): # Methods with same name use the Base_
         if config_kwargs is None:
             config_kwargs = {}
         self._init_task_env_(**config_kwargs)
-        self.grasped_object = None
-        self.manipulation_target = None
 
     # def close_env(self, clear_cache=False):
     #     """
