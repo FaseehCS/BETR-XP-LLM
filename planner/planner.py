@@ -72,7 +72,7 @@ def handle_precondition(
     for action in action_list:
         skill_descriptions[action.skill_name] = action.description
     for condition in condition_list:
-        condition_descriptions[condition.skill_name] = condition.description
+        condition_descriptions[condition.condition_name] = condition.description
 
     descriptions["skills"] = skill_descriptions
     descriptions["conditions"] = condition_descriptions
