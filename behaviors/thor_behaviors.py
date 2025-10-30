@@ -25,7 +25,7 @@ class AtPos(Behavior):
     """
     Check if object is at position
     """
-    skill_name = "At_Pos"
+    condition_name = "At_Pos"
     description = "Check if object is at position e.g. At_Pos(Cup, on, countertop), At_Pos(Cup, inside, microwave), etc. - Relation: 'on' indicates placement on a surface. - Relation: 'inside' indicates containment within an object. For containers, if AtPos(target, relation='inside', relative_object) exists, the container is occupied."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -94,7 +94,7 @@ class Grasped(Behavior):
     """
     Check if object is grasped
     """
-    skill_name = "grasped"
+    condition_name = "grasped"
     description = "Check if object is in robot's gripper. If the gripper is invisible the object will be in the bottom of the image. The object will be floating and zoomed in. E.g. grasped(Cup),  grasped(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -125,7 +125,7 @@ class LocationKnown(Behavior):
     """
     Check if object location is known
     """
-    skill_name = "Location_Known"
+    condition_name = "Location_Known"
     description = "Check if object location is known. This includes the objects that are clearly visible to the robot and the objects that are not visible but we know their locations and navigable. E.g. Location_Known(Cup), Location_Known(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -151,7 +151,7 @@ class Upright(Behavior):
     """
     Check if object is standing upright
     """
-    skill_name = "Upright"
+    condition_name = "Upright"
     description = "Check if object is standing upright"
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -177,7 +177,7 @@ class NearRobot(Behavior):
     """
     Check if object is within reach
     """
-    skill_name = "Near_Robot"
+    condition_name = "Near_Robot"
     description = "Check if object is within reach. This includes the objects that are directly infront of the robot and are visible to the robot. E.g. Near_Robot(Cup), Near_Robot(Apple), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -203,7 +203,7 @@ class Opened(Behavior):
     """
     Check if object is open
     """
-    skill_name = "Opened"
+    condition_name = "Opened"
     description = "Check if object is opened e.g. Opened(MicrowaveDoor), Opened(FridgeDoor), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -229,7 +229,7 @@ class Toggled(Behavior):
     """
     Check if object is open
     """
-    skill_name = "Toggled"
+    condition_name = "Toggled"
     description = "Check if object is turned on/off e.g. Toggled(Microwave), Toggled(CoffeeMachine), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -255,7 +255,7 @@ class Unlocked(Behavior):
     """
     Check if object is unlocked
     """
-    skill_name = "Unlocked"
+    condition_name = "Unlocked"
     description = "Check if object is unlocked e.g. Unlocked(Safe), Unlocked(Box), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -281,7 +281,7 @@ class Sliced(Behavior):
     """
     Check if object is sliced
     """
-    skill_name = "Sliced"
+    condition_name = "Sliced"
     description = "Check if object is sliced e.g. Sliced(Apple), Sliced(Carrot), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -307,7 +307,7 @@ class Cracked(Behavior):
     """
     Check if object is cracked
     """
-    skill_name = "Cracked"
+    condition_name = "Cracked"
     description = "Check if object is cracked e.g. Cracked(Egg), Cracked(Nut), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -333,7 +333,7 @@ class Cleaned(Behavior):
     """
     Check if object is Clean
     """
-    skill_name = "Cleaned"
+    condition_name = "Cleaned"
     description = "Check if object is clean e.g. clean(Mug), clean(Bowl), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
@@ -359,7 +359,7 @@ class Filled(Behavior):
     """
     Check if object is filled
     """
-    skill_name = "Filled"
+    condition_name = "Filled"
     description = "Check if object is filled with liquid e.g. Filled(Cup), Filled(Bowl), etc."
 
     def __init__(self, name, parameters, world_interface, _verbose=False):
