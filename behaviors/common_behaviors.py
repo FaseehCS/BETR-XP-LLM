@@ -425,8 +425,8 @@ class ActionBehavior(Behavior):
                 while not self.world_interface.has_stopped():
                     time.sleep(0.5)
                 self.world_interface.get_feedback()
-                rgb_img, depth_img, _ = self.world_interface.get_updated_image()
                 if self.vlm_prompter.vlm_run:
+                    rgb_img, depth_img, _ = self.world_interface.get_updated_image()
                     save_dir = f"./data/{self.world_interface.image_index}_{self.name.replace('!', '')}"
                     cv2.imwrite(f"{save_dir}/after.png", rgb_img)
                     np.save(f"{save_dir}/depth_after.npy", depth_img)
