@@ -286,7 +286,8 @@ class Toggle(ActionBehavior):
     skill_name = "Toggle"
     description = "Toggle (press/click) an object with the gripper (requires empty gripper)."
     def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
-        pre = [Grasped('', {"object": None}, world_interface)]
+        # pre = [Grasped('', {"object": None}, world_interface)]
+        pre = []
         post = [Toggled('', {"object": parameters["object"]}, world_interface)]
         name = Toggle.to_string(parameters)
         super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=200, verbose=verbose)
