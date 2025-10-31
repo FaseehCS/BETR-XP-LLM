@@ -5,6 +5,7 @@ import numpy as np
 # robotwin imports
 from envs._base_task import Base_Task
 from envs import *
+from envs.utils.actor_utils import Actor
 from script.collect_data import class_decorator, get_camera_config
 from envs.utils.action import ArmTag, Action
 import yaml
@@ -48,7 +49,11 @@ class WorldInterface(BaseWorldInterface):
                 continue
             
         # self.run_demo()
-        self.actors = self.scene.get_all_actors()
+        self.actors = []
+        for _, item in vars(self).items():
+            if isinstance(item, Actor):
+                self.actors.append(item)
+
         self._build_name_to_actor()
         self.beat_count = defaultdict(int)
         self.toggled = defaultdict(bool)
@@ -477,6 +482,9 @@ class WorldInterface(BaseWorldInterface):
         target_object = self._get_actor(object_name)
         if target_object is None:
             return
+
+        if arm_tag == "any":
+            arm_tag = ArmTag("right" if target_object.get_pose().p[0] > 0 else "left")
 
         # Move the gripper above the top center of the alarm clock and close the gripper to simulate a click
         # Note: although the code structure resembles a grasp, it is used here to simulate a touch/click action
