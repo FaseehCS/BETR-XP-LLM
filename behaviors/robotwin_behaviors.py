@@ -33,12 +33,14 @@ class AtPos(Behavior):
     description = "Check if object is at given pose."
 
     def __init__(self, name, parameters, world_interface: WorldInterface, _verbose=False):
+        if not "relative_object" in parameters:
+            parameters["relative_object"] = ""
         name = AtPos.to_string(parameters)
         super().__init__(name, parameters, world_interface)
 
     @staticmethod
     def to_string(parameters):
-        return f'{extract_name(parameters["object"])} at {parameters["pose"]}?'
+        return f'{extract_name(parameters["object"])} {parameters["relation"]} {parameters["relative_object"]}?'
 
     def update(self):
         target_object = self.parameters["object"]
@@ -217,11 +219,17 @@ class Pick(ActionBehavior):
     skill_name = "Pick"
     description = "Pick up an object"
     def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
-        pre = [Grasped('', {"object": parameters["object"], "arm_tag": "any", "not": True}, world_interface),
-               AtPos('', {"object": parameters["object"], "pose": parameters.get("pick_pose")}, world_interface)]
+
+        if "arm_tag" not in parameters or parameters["arm_tag"] == "any":
+            parameters["arm_tag"] = "right"
+
+        pre = [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface)]
+        opposite_arm = "left" if parameters["arm_tag"] == "right" else "right"
+        pre.append(Grasped('', {"not": True, "object": parameters["object"], "arm_tag": opposite_arm}, world_interface))
+
         post = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
         name = Pick.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
     def to_string(self, parameters):
         self.action_string = f"pick {extract_name(parameters['object'])} with {extract_name(parameters['arm_tag'])} arm!"
@@ -241,7 +249,7 @@ class MoveByDisplacement(ActionBehavior):
         post = [Grasped('', {"object": parameters["object"]}, world_interface),
                 AtPos('', {"object": parameters["object"], "pose": parameters["target_pose"]}, world_interface)]
         name = MoveByDisplacement.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -264,7 +272,7 @@ class Place(ActionBehavior):
             parameters["relation"] = "away"
 
         name = Place.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
     def to_string(self, parameters):
         # We have five action variants: place on, place inside, place away, place to the left of, place to the right of. Text needs to be generated accordingly.
@@ -274,13 +282,13 @@ class Place(ActionBehavior):
             self.action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} {extract_name(parameters['relative_object'])} with {extract_name(parameters['arm_tag'])} arm!"
         return self.action_string
     
-    # def execute(self):
-    #     self.world_interface.place(
-    #         self.parameters["object"],
-    #         self.parameters["relation"],
-    #         self.parameters["relative_object"],
-    #         self.parameters["arm_tag"]
-    #     )
+    def execute(self):
+        self.world_interface.place(
+            self.parameters["object"],
+            self.parameters["relation"],
+            self.parameters["relative_object"],
+            self.parameters["arm_tag"]
+        )
 
 class Toggle(ActionBehavior):
     skill_name = "Toggle"
@@ -290,7 +298,7 @@ class Toggle(ActionBehavior):
         pre = []
         post = [Toggled('', {"object": parameters["object"]}, world_interface)]
         name = Toggle.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=200, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=200, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -310,7 +318,7 @@ class Beat(ActionBehavior):
             "count": parameters.get("count", 1)
         }, world_interface)]
         name = Beat.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=200, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=200, verbose=verbose)
     @staticmethod
     def to_string(parameters):
         count_str = f" {parameters['count']}x" if "count" in parameters else ""
@@ -328,7 +336,7 @@ class Pour(ActionBehavior):
         pre = [Grasped('', {"object": parameters["from"]}, world_interface)]
         post = [ContentsIn('', {"content": parameters["content"], "container": parameters["to"]}, world_interface)]
         name = Pour.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=400, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=400, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -344,7 +352,7 @@ class GrabTogether(ActionBehavior):
         pre = [BothArmsFree('', {}, world_interface)]
         post = [HeldByArm('', {"object": parameters["object"], "arm": "both"}, world_interface)]
         name = GrabTogether.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=500, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=500, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -360,7 +368,7 @@ class Handover(ActionBehavior):
         pre = [HeldByArm('', {"object": parameters["object"], "arm": parameters["from_arm"]}, world_interface)]
         post = [HeldByArm('', {"object": parameters["object"], "arm": parameters["to_arm"]}, world_interface)]
         name = Handover.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=400, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=400, verbose=verbose)
 
     @staticmethod
     def to_string(parameters):
@@ -383,7 +391,7 @@ class Hang(ActionBehavior):
             Hung('', {"object": parameters["object"], "target": parameters["target"]}, world_interface)
         ]
         name = Hang.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
 class Open(ActionBehavior):
     skill_name = "Open"
@@ -392,7 +400,7 @@ class Open(ActionBehavior):
         pre = [Grasped('', {"object": parameters["object"]}, world_interface)]
         post = [Opened('', {"object": parameters["object"]}, world_interface)]
         name = Open.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
     @staticmethod
     def to_string(parameters):
         return f"open {extract_name(parameters['object'])}!"
@@ -415,7 +423,7 @@ class Scan(ActionBehavior):
                Grasped('', {"object": parameters["object"]}, world_interface)]
         post = [Scanned('', {"object": parameters["object"], "scanner": parameters["scanner"]}, world_interface)]
         name = Scan.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=200, verbose=verbose)
+        supActionBehaviorer().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=200, verbose=verbose)
     @staticmethod
     def to_string(parameters):
         return f"scan {extract_name(parameters['object'])} with {extract_name(parameters['scanner'])}!"
@@ -434,7 +442,7 @@ class Shake(ActionBehavior):
                     "shake_orientation": parameters.get("shake_orientation", None)
                 }, world_interface)]
         name = Shake.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=150, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=150, verbose=verbose)
     @staticmethod
     def to_string(parameters):
         s = f"shake {extract_name(parameters['object'])}"
@@ -457,7 +465,7 @@ class Stamp(ActionBehavior):
         pre = [Grasped('', {"object": parameters["stamp"]}, world_interface)]
         post = [Stamped('', {"stamp": parameters["stamp"], "target": parameters["target"]}, world_interface)]
         name = Stamp.to_string(parameters)
-        super().__init__(name, parameters, world_interface, pre, post, vlm, max_ticks=150, verbose=verbose)
+        ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=150, verbose=verbose)
     @staticmethod
     def to_string(parameters):
         return f"stamp {extract_name(parameters['stamp'])} on {extract_name(parameters['target'])}!"
