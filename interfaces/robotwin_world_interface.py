@@ -286,6 +286,12 @@ class WorldInterface(BaseWorldInterface):
 
     def is_grasped(self, arm_tag="any", object_name='"any object"'):
         """Check if the specified object is currently grasped."""
+        if object_name == '"any object"':
+            for actor in self.actors:
+                if self.is_grasped(arm_tag, actor.get_name()):
+                    return True
+            return False
+
         object_pose = self.get_object_pose(object_name).p
         contact = self.get_gripper_actor_contact_position(object_name)
         return (object_pose[2] > 0.8 and len(contact) > 0)
@@ -319,7 +325,7 @@ class WorldInterface(BaseWorldInterface):
                         and abs(target_object_pose[1] - relative_pose[1]) < 0.05)
         
     def get_all_objects(self):
-        return self.scene.get_all_actors()
+        return self.actors
     
     def get_relation(self, target_object, relative_object):
         target_object_pose = self.get_object_pose(target_object)
@@ -390,7 +396,10 @@ class WorldInterface(BaseWorldInterface):
         eps = np.array([0.02, 0.02])
         return np.all(abs(tool_target_pose[:2] - block_pose[:2]) < eps) and self.check_actors_contact(
             tool_actor.get_name(), actor.get_name())
-    
+
+    def get_closest_arm(self, object_name):
+        return ArmTag("right" if self.get_object_pose(object_name).p[0] > 0 else "left")
+
     def pick(self, target_object, arm_tag='any'):
         """ Pick up the target object using the specified arm. """
         # Determine which arm to use based on object's x position
