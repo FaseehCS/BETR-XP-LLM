@@ -2,9 +2,14 @@
 
 from enum import IntEnum
 from behaviors.common_behaviors import Behavior, ActionBehavior
+import behaviors.common_behaviors
 import py_trees as pt
 
 from interfaces.robotwin_world_interface import WorldInterface
+
+def get_node(node_descriptor, world_interface, verbose = False):
+    """ Returns a node object given the descriptor string """
+    return behaviors.common_behaviors.get_node(node_descriptor, world_interface, verbose=verbose)
 
 def extract_name(object_id):
     if object_id is None:
@@ -221,7 +226,7 @@ class Pick(ActionBehavior):
     def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
 
         if "arm_tag" not in parameters or parameters["arm_tag"] == "any":
-            parameters["arm_tag"] = "right"
+            parameters["arm_tag"] = world_interface.get_closest_arm(parameters["object"])
 
         pre = [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface)]
         opposite_arm = "left" if parameters["arm_tag"] == "right" else "right"
@@ -231,9 +236,9 @@ class Pick(ActionBehavior):
         name = Pick.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
-    def to_string(self, parameters):
-        self.action_string = f"pick {extract_name(parameters['object'])} with {extract_name(parameters['arm_tag'])} arm!"
-        return self.action_string
+    def to_string(parameters):
+        action_string = f"pick {extract_name(parameters['object'])} with {extract_name(parameters['arm_tag'])} arm!"
+        return action_string
 
     def execute(self):
         self.world_interface.pick(self.parameters["object"], self.parameters["arm_tag"])
@@ -274,13 +279,13 @@ class Place(ActionBehavior):
         name = Place.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
 
-    def to_string(self, parameters):
+    def to_string(parameters):
         # We have five action variants: place on, place inside, place away, place to the left of, place to the right of. Text needs to be generated accordingly.
         if parameters["relation"] == "away":
-            self.action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} with {extract_name(parameters['arm_tag'])} arm!"
+            action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} with {extract_name(parameters['arm_tag'])} arm!"
         else:
-            self.action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} {extract_name(parameters['relative_object'])} with {extract_name(parameters['arm_tag'])} arm!"
-        return self.action_string
+            action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} {extract_name(parameters['relative_object'])} with {extract_name(parameters['arm_tag'])} arm!"
+        return action_string
     
     def execute(self):
         self.world_interface.place(
