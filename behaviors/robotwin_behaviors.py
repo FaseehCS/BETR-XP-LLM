@@ -235,6 +235,7 @@ class Pick(ActionBehavior):
         post = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
         name = Pick.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
+        self.action_string = name
 
     def to_string(parameters):
         action_string = f"pick {extract_name(parameters['object'])} with {extract_name(parameters['arm_tag'])} arm!"
@@ -243,8 +244,8 @@ class Pick(ActionBehavior):
     def execute(self):
         self.world_interface.pick(self.parameters["object"], self.parameters["arm_tag"])
 
-    # def execute_vla(self):
-    #     self.vla.generate_action(self.action_string)
+    def execute_vla(self):
+        self.world_interface.generate_action(self.action_string)
 
 class MoveByDisplacement(ActionBehavior):
     skill_name = "MoveByDisplacement"

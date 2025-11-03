@@ -13,11 +13,22 @@ import os
 import traceback
 import importlib
 
+def encode_obs(observation):
+    input_rgb_arr = [
+        observation["observation"]["head_camera"]["rgb"],
+        observation["observation"]["right_camera"]["rgb"],
+        observation["observation"]["left_camera"]["rgb"],
+    ]
+    input_state = observation["joint_action"]["vector"]
+
+    return input_rgb_arr, input_state
+
 class WorldInterface(BaseWorldInterface):
-    def __init__(self, task_name="beat_block_hammer", task_config="demo_clean", seed=0, gripper_bias=0.16, movable_objects=None, graspable_objects=None, table_offset=0):
+    def __init__(self, task_name="beat_block_hammer", task_config="demo_clean", seed=0, gripper_bias=0.16, vla_model=None, movable_objects=None, graspable_objects=None, table_offset=0):
         # Dynamically import the task-specific environment class
         envs_module = importlib.import_module(f"envs.{task_name}")
         env_class = getattr(envs_module, task_name)
+        self.vla_model = vla_model
         
         # Initialize BaseWorldInterface first
         BaseWorldInterface.__init__(self,
@@ -219,7 +230,29 @@ class WorldInterface(BaseWorldInterface):
     #     """Debug: print or return contacts in the scene."""
     #     return self.get_scene_contact()
 
-     # === 3. OBJECT & GRIPPER STATE QUERIES ===
+     # === 3. Vision Language Action Model ===
+    def generate_action(self, instruction):
+        """ Generate action using VLA model based on instruction """
+
+        self.vla_model.set_language(instruction)
+        observation = self.get_obs()
+        input_rgb_arr, input_state = encode_obs(observation)
+        self.vla_model.update_observation_window(input_rgb_arr, input_state)
+
+        # ======== Get Action ========
+
+        actions = self.vla_model.get_action()[:self.vla_model.pi0_step]
+
+        for action in actions:
+            self.take_action(action)
+            observation = self.get_obs()
+            input_rgb_arr, input_state = encode_obs(observation)
+            self.vla_model.update_observation_window(input_rgb_arr, input_state)
+        
+        # ======== Reset ========
+        self.vla_model.reset_obsrvationwindows()
+
+     # === 4. OBJECT & GRIPPER STATE QUERIES ===
     def get_object_pose(self, object_name):
         """Return the pose (position and orientation) of an object in the scene."""
         for actor in self.actors:
