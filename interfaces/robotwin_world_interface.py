@@ -409,6 +409,8 @@ class WorldInterface(BaseWorldInterface):
         else:
             arm_tag = ArmTag(arm_tag)
 
+        # Open the gripper
+        self.move(self.open_gripper(arm_tag=arm_tag))
         # Grasp the object with specified arm
         self.move(self.grasp_actor(target_object, arm_tag=arm_tag, pre_grasp_dis=0.1))
         # Lift the object upward by 0.1 meters along z-axis using arm movement
