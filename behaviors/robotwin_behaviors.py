@@ -121,14 +121,14 @@ class Beaten(Behavior):
     @staticmethod
     def to_string(parameters):
         if "count" in parameters:
-            return f"{extract_name(parameters['target'])} beaten by {extract_name(parameters['by'])} ({parameters['count']}x)?"
-        return f"{extract_name(parameters['target'])} beaten by {extract_name(parameters['by'])}?"
+            return f"{extract_name(parameters['target'])} beaten by {extract_name(parameters['tool'])} ({parameters['count']}x)?"
+        return f"{extract_name(parameters['target'])} beaten by {extract_name(parameters['tool'])}?"
     def update(self):
         # Assumes world_interface.is_beaten takes count as optional argument
         return self.check_negated(
             self.world_interface.is_beaten(
                 self.parameters["target"],
-                self.parameters["by"],
+                self.parameters["tool"],
                 self.parameters.get("count", 1)
             )
         )
@@ -319,7 +319,7 @@ class Beat(ActionBehavior):
         pre = [Grasped('', {"object": parameters["tool"]}, world_interface)]
         post = [Beaten('', {
             "target": parameters["target"],
-            "by": parameters["tool"],
+            "tool": parameters["tool"],
             "count": parameters.get("count", 1)
         }, world_interface)]
         name = Beat.to_string(parameters)
