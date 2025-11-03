@@ -20,13 +20,14 @@ class WorldInterface(BaseWorldInterface):
         env_class = getattr(envs_module, task_name)
         
         # Initialize BaseWorldInterface first
-        super().__init__(
+        BaseWorldInterface.__init__(self,
             cfree_interface=None,
             movable_objects=movable_objects,
             graspable_objects=graspable_objects,
             table_offset=table_offset,
         )
         self.__class__ = type(self.__class__.__name__, (WorldInterface, env_class), {})
+        env_class.__init__(self)
 
         # Create robotwin environment
         self.args = self.create_args(task_name, task_config, seed, gripper_bias)
