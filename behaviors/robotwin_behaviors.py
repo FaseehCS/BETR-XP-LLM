@@ -241,10 +241,11 @@ class Pick(ActionBehavior):
         action_string = f"pick {extract_name(parameters['object'])} with {extract_name(parameters['arm_tag'])} arm!"
         return action_string
 
-    def execute(self):
-        self.world_interface.pick(self.parameters["object"], self.parameters["arm_tag"])
+    # def execute(self):
+    #     self.world_interface.pick(self.parameters["object"], self.parameters["arm_tag"])
 
-    def execute_vla(self):
+    def execute(self):
+        self.world_interface.gripper_open(self.parameters["arm_tag"])
         self.world_interface.generate_action(self.action_string)
 
 class MoveByDisplacement(ActionBehavior):
@@ -269,13 +270,22 @@ class Place(ActionBehavior):
     description = "Place an object at a specified pose"
     def __init__(self, name, parameters, world_interface: WorldInterface, vlm=None, verbose=False):
 
-        pre = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
-        post = [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface),
-                AtPos('',{"object": parameters["object"], "relation": parameters["relation"], "relative_object": parameters["relative_object"]}, world_interface)]
- 
         # Default behavior if relation and relative_object are not defined
         if not "relation" in parameters and not "relative_object" in parameters:
             parameters["relation"] = "away"
+
+        if "arm_tag" not in parameters or parameters["arm_tag"] == "any":
+            parameters["arm_tag"] = world_interface.get_closest_arm(parameters["object"])
+
+        pre = [Grasped('', {"object": parameters["object"], "arm_tag": parameters["arm_tag"]}, world_interface)]
+
+        post = [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface)]
+
+        if parameters["relation"] == "away":
+            post.append(AtPos('',{"object": parameters["object"], "relation": parameters["relation"]}, world_interface))
+        else:
+            post.append(AtPos('',{"object": parameters["object"], "relation": parameters["relation"], "relative_object": parameters["relative_object"]}, world_interface))
+ 
 
         name = Place.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
