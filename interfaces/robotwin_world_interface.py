@@ -235,22 +235,27 @@ class WorldInterface(BaseWorldInterface):
         """ Generate action using VLA model based on instruction """
 
         self.vla_model.set_language(instruction)
-        observation = self.get_obs()
-        input_rgb_arr, input_state = encode_obs(observation)
-        self.vla_model.update_observation_window(input_rgb_arr, input_state)
 
-        # ======== Get Action ========
-
-        actions = self.vla_model.get_action()[:self.vla_model.pi0_step]
-
-        for action in actions:
-            self.take_action(action)
+        action_count = 0
+        while action_count < 100:
             observation = self.get_obs()
             input_rgb_arr, input_state = encode_obs(observation)
             self.vla_model.update_observation_window(input_rgb_arr, input_state)
+
+            # ======== Get Action ========
+
+            actions = self.vla_model.get_action()[:self.vla_model.pi0_step]
+
+            for action in actions:
+                self.take_action(action)
+                action_count += 1
+                observation = self.get_obs()
+                input_rgb_arr, input_state = encode_obs(observation)
+                self.vla_model.update_observation_window(input_rgb_arr, input_state)
         
         # ======== Reset ========
         self.vla_model.reset_obsrvationwindows()
+        self.robot.move_to_homestate()
 
      # === 4. OBJECT & GRIPPER STATE QUERIES ===
     def get_object_pose(self, object_name):
@@ -358,6 +363,11 @@ class WorldInterface(BaseWorldInterface):
             return np.all(distance < 0.2 and distance > 0.08 and target_object_pose[0] < relative_pose[0]
                         and abs(target_object_pose[1] - relative_pose[1]) < 0.05)
         
+        elif relation == "away":
+            object_pose = target_object_pose.p
+            edge_x = 0.23
+            return np.all(abs(object_pose[0]) > abs(edge_x))
+
     def get_all_objects(self):
         return self.actors
     
@@ -433,6 +443,10 @@ class WorldInterface(BaseWorldInterface):
 
     def get_closest_arm(self, object_name):
         return ArmTag("right" if self.get_object_pose(object_name).p[0] > 0 else "left")
+
+    def gripper_open(self, arm_tag):
+        """ Open the gripper of the specified arm. """
+        self.move(self.open_gripper(arm_tag=ArmTag(arm_tag)))
 
     def pick(self, target_object, arm_tag='any'):
         """ Pick up the target object using the specified arm. """
