@@ -342,6 +342,9 @@ class WorldInterface(BaseWorldInterface):
                 if self.object_at(obj.get_name(), relation, relative_object):
                     return True
             return False
+        
+        if self.is_grasped(target_object=target_object):
+            return False
 
         target_object_pose = self.get_object_pose(target_object)
         relative_object_pose = self.get_object_pose(relative_object)
