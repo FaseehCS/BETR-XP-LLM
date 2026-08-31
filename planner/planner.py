@@ -345,7 +345,7 @@ def plan(
         for goal in goals:
             tree.add_child(goal)
 
-    for i in range(40):
+    for i in range(20):
         if not handle_priority(tree, behaviors):
             break
         world_interface.get_feedback()
@@ -371,11 +371,11 @@ def plan(
         remove_postconditions(tree, behaviors)
     expand_composite_leafs(tree, behaviors)
 
-    # if behavior_lists is None:
-    #     behavior_lists = BehaviorLists()
-    # py_tree_parameters = PyTreeParameters(behavior_lists=behavior_lists, behaviors=behaviors)
-    # py_tree = PyTree([], py_tree_parameters, world_interface, tree)
-    # py_tree.bt.trim()
+    if behavior_lists is None:
+        behavior_lists = BehaviorLists()
+    py_tree_parameters = PyTreeParameters(behavior_lists=behavior_lists, behaviors=behaviors)
+    py_tree = PyTree([], py_tree_parameters, world_interface, tree)
+    py_tree.bt.trim()
     PyTree(py_tree.bt.bt[:], py_tree_parameters, None).save_fig("", "Planned bt")
 
     return py_tree.bt.bt, tree

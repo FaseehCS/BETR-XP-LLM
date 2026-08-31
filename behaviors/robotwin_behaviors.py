@@ -51,6 +51,7 @@ class AtPos(Behavior):
         target_object = self.parameters["object"]
         relation = self.parameters["relation"]
         relative_object = self.parameters["relative_object"]
+        return self.check_negated(self.world_interface.object_at(target_object, relation, relative_object))
         if target_object == '"any object"':
             object_at = False
             return self.check_negated(object_at)
@@ -228,7 +229,7 @@ class Pick(ActionBehavior):
         if "arm_tag" not in parameters or parameters["arm_tag"] == "any":
             parameters["arm_tag"] = world_interface.get_closest_arm(parameters["object"])
 
-        pre = [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface)]
+        pre = [] # [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface)]
         opposite_arm = "left" if parameters["arm_tag"] == "right" else "right"
         pre.append(Grasped('', {"not": True, "object": parameters["object"], "arm_tag": opposite_arm}, world_interface))
 
@@ -238,7 +239,7 @@ class Pick(ActionBehavior):
         self.action_string = name
 
     def to_string(parameters):
-        action_string = f"pick {extract_name(parameters['object'])} with {extract_name(parameters['arm_tag'])} arm!"
+        action_string = f"pick {extract_name(parameters['object'])} with the {extract_name(parameters['arm_tag'])} arm arm!"
         return action_string
 
     # def execute(self):
@@ -281,7 +282,7 @@ class Place(ActionBehavior):
 
         post = [Grasped('', {"not": True, "object": '"any object"', "arm_tag": parameters["arm_tag"]}, world_interface)]
 
-        if parameters["relation"] == "away":
+        if parameters["relation"] in  ["away", "center", "left side", "right side"]:
             post.append(AtPos('',{"object": parameters["object"], "relation": parameters["relation"]}, world_interface))
         else:
             post.append(AtPos('',{"object": parameters["object"], "relation": parameters["relation"], "relative_object": parameters["relative_object"]}, world_interface))
@@ -289,22 +290,23 @@ class Place(ActionBehavior):
 
         name = Place.to_string(parameters)
         ActionBehavior.__init__(self, name, parameters, world_interface, pre, post, vlm, max_ticks=300, verbose=verbose)
+        self.action_string = name
 
     def to_string(parameters):
         # We have five action variants: place on, place inside, place away, place to the left of, place to the right of. Text needs to be generated accordingly.
         if parameters["relation"] == "away":
-            action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} with {extract_name(parameters['arm_tag'])} arm!"
+            action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} with the {extract_name(parameters['arm_tag'])} arm arm!"
         else:
-            action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} {extract_name(parameters['relative_object'])} with {extract_name(parameters['arm_tag'])} arm!"
+            action_string = f"place {extract_name(parameters['object'])} {parameters['relation']} {extract_name(parameters['relative_object'])} with the {extract_name(parameters['arm_tag'])} arm arm!"
         return action_string
     
-    def execute(self):
-        self.world_interface.place(
-            self.parameters["object"],
-            self.parameters["relation"],
-            self.parameters["relative_object"],
-            self.parameters["arm_tag"]
-        )
+    # def execute(self):
+    #     self.world_interface.place(
+    #         self.parameters["object"],
+    #         self.parameters["relation"],
+    #         self.parameters["relative_object"],
+    #         self.parameters["arm_tag"]
+    #     )
 
 class Toggle(ActionBehavior):
     skill_name = "Toggle"

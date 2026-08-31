@@ -532,7 +532,7 @@ class ActionBehavior(Behavior):
 
     def execute(self):
         """ Execute the action behavior. To be implemented by child classes. """
-        self.vla.generate_action(self.action_string)
+        self.world_interface.generate_action(self.action_string)
     
 class ComparisonCondition(pt.behaviour.Behaviour):
     """Class template for conditions comparing against constants."""

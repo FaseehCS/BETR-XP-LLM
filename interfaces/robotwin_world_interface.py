@@ -13,6 +13,11 @@ import os
 import traceback
 import importlib
 
+y = 0
+x = 0.08
+z = 0.755
+POSITIONS = {"left side": [-x, y, z], "the center": [0, y, z], "right side": [x, y, z]}
+
 def encode_obs(observation):
     input_rgb_arr = [
         observation["observation"]["head_camera"]["rgb"],
@@ -42,14 +47,13 @@ class WorldInterface(BaseWorldInterface):
 
         # Create robotwin environment
         self.args = self.create_args(task_name, task_config, seed, gripper_bias)
-        for i in range(seed, seed + 3):
+        for i in range(seed, seed + 10):
             try:
                 self.args["seed"] = seed
-                self.setup_demo(**self.args)
+                self.args["eval_mode"] = True
+                self.setup_demo(is_test=True, **self.args)
                 break
             except Exception as e:
-                if i == seed + 2:
-                    continue
                 print(f"Failed to create demo for task {task_name}: {e}")
                 traceback.print_exc()
                 try:
@@ -58,7 +62,6 @@ class WorldInterface(BaseWorldInterface):
                         self.viewer.close()
                 except:
                     pass
-                continue
             
         # self.run_demo()
         self.actors = []
@@ -236,6 +239,7 @@ class WorldInterface(BaseWorldInterface):
 
         self.vla_model.set_language(instruction)
 
+        print("Executing VLA instruction:", instruction)
         action_count = 0
         while action_count < 100:
             observation = self.get_obs()
@@ -252,14 +256,25 @@ class WorldInterface(BaseWorldInterface):
                 observation = self.get_obs()
                 input_rgb_arr, input_state = encode_obs(observation)
                 self.vla_model.update_observation_window(input_rgb_arr, input_state)
+
+        # self.reset_vla()
         
+    def reset_vla(self):
         # ======== Reset ========
         self.vla_model.reset_obsrvationwindows()
         self.robot.move_to_homestate()
 
+    def hri_mode(self):
+        print("Robot: Hi, How can I help you?")
+        action_string = input("Instruction:")
+        self.generate_action(action_string)
+
      # === 4. OBJECT & GRIPPER STATE QUERIES ===
     def get_object_pose(self, object_name):
         """Return the pose (position and orientation) of an object in the scene."""
+        if object_name in POSITIONS:
+            return POSITIONS[object_name]
+
         for actor in self.actors:
             if actor.get_name() == object_name:
                 pose = actor.get_pose()
@@ -295,7 +310,7 @@ class WorldInterface(BaseWorldInterface):
         if pose_a is None or pose_b is None:
             return False
         # Simple Z-axis check: is A above B (threshold can be tuned)
-        return pose_a[2] > pose_b[2] + 0.01
+        return pose_a[2] > pose_b[2] + 0.01 and abs(pose_a[0] - pose_b[0]) < 0.025 and abs(pose_a[1] - pose_b[1]) < 0.025
 
     def is_object_in(self, object_a, object_b):
         """Check if object_a is inside object_b."""
@@ -331,6 +346,9 @@ class WorldInterface(BaseWorldInterface):
                     return True
             return False
 
+        if object_name in POSITIONS:
+            return False
+
         object_pose = self.get_object_pose(object_name).p
         contact = self.get_gripper_actor_contact_position(object_name)
         return (object_pose[2] > 0.8 and len(contact) > 0)
@@ -343,32 +361,37 @@ class WorldInterface(BaseWorldInterface):
                     return True
             return False
         
-        if self.is_grasped(target_object=target_object):
+        if self.is_grasped(object_name=target_object):
             return False
 
-        target_object_pose = self.get_object_pose(target_object)
-        relative_object_pose = self.get_object_pose(relative_object)
+        object_pose = self.get_object_pose(target_object).p
+        if relative_object in POSITIONS:
+            relative_pose = POSITIONS[relative_object]
+        else:
+            relative_pose = self.get_object_pose(relative_object).p
 
         if relation == "on":
-            object_pose = target_object_pose.p
-            scale_pose = relative_object_pose.p
+
             distance_threshold = 0.035
-            distance = np.linalg.norm(np.array(scale_pose[:2]) - np.array(object_pose[:2]))
-            return (distance < distance_threshold and object_pose[2] > (scale_pose[2] - 0.01))
+            distance = np.linalg.norm(np.array(relative_pose[:1]) - np.array(object_pose[:1]))
+            return (distance < distance_threshold and object_pose[2] > relative_pose[2] and object_pose[2] < relative_pose[2] + 0.05)
 
         elif relation == "inside":
-            return np.sum(np.sqrt((target_object_pose.p - relative_object_pose.p)**2)) < 0.15
+            return np.sum(np.sqrt((object_pose - relative_pose)**2)) < 0.15
 
         elif relation == "to_left_of" or relation == "to_right_of":
-            relative_pose = relative_object_pose.p.tolist()
-            relative_pose[0] -= 0.13 if relation == "to_left_of" else 0.13
-            distance = np.sqrt(np.sum((target_object_pose[:2] - relative_pose[:2])**2))
-            return np.all(distance < 0.2 and distance > 0.08 and target_object_pose[0] < relative_pose[0]
-                        and abs(target_object_pose[1] - relative_pose[1]) < 0.05)
+            if self.is_grasped("any", target_object) or self.is_grasped("any", relative_object):
+                return False
+            distance = np.sqrt(np.sum((object_pose[:2] - relative_pose[:2])**2))
+            if relation == "to_left_of":
+                return np.all(distance < 0.2 and distance > 0.08 and object_pose[0] < relative_pose[0]
+                            and abs(object_pose[1] - relative_pose[1]) < 0.05)
+            else:
+                return np.all(distance < 0.2 and distance > 0.08 and object_pose[0] > relative_pose[0]
+                            and abs(object_pose[1] - relative_pose[1]) < 0.05)                
         
         elif relation == "away":
-            object_pose = target_object_pose.p
-            edge_x = 0.23
+            edge_x = 0.28
             return np.all(abs(object_pose[0]) > abs(edge_x))
 
     def get_all_objects(self):
@@ -379,6 +402,8 @@ class WorldInterface(BaseWorldInterface):
         relative_object_pose = self.get_object_pose(relative_object)
         target_object_pose_p = target_object_pose.p
         relative_object_pose_p = relative_object_pose.p
+        relative_pose = relative_object_pose_p.tolist()
+
 
         distance_threshold = 0.035
         distance = np.linalg.norm(np.array(relative_object_pose_p[:2]) - np.array(target_object_pose_p[:2]))
@@ -388,10 +413,8 @@ class WorldInterface(BaseWorldInterface):
         if np.sum(np.sqrt((target_object_pose_p - relative_object_pose_p)**2)) < 0.15:
             return "inside"
 
-        relative_pose = relative_object_pose.p.tolist()
-
         distance = np.sqrt(np.sum((target_object_pose[:2] - relative_pose[:2])**2))
-        if np.all(distance < 0.2 and distance > 0.08 and target_object_pose[0] < 0.13
+        if np.all(distance < 0.2 and distance > 0.08 and target_object_pose[0] < relative_object_pose
                     and distance < 0.2 and distance > 0.08 and target_object_pose[0] > 0
                     and abs(target_object_pose[1] - relative_pose[1]) < 0.05):
             return "to_left_of"

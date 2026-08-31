@@ -292,8 +292,12 @@ def get_conflicting(
 
     """
     for c in condition_list:
-        if not behaviors.compatible(condition, c):
-            return c
+        try:
+            if not behaviors.compatible(condition, c):
+                return c
+        except Exception:
+            # If there's an error in checking compatibility, assume no conflict
+            continue
 
     return None
 

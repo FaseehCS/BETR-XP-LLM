@@ -130,13 +130,13 @@ class BaseWorldInterface:
                 else:
                     self.cfree_interface.remove_obstacle(movable_object)
 
-    def close_gripper(self):
-        """ No gripper simulation for now """
-        return
+    # def close_gripper(self):
+    #     """ No gripper simulation for now """
+    #     return
 
-    def open_gripper(self):
-        """ No gripper simulation for now """
-        return
+    # def open_gripper(self):
+    #     """ No gripper simulation for now """
+    #     return
 
     @staticmethod
     def get_close_gripper_program():

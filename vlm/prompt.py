@@ -49,11 +49,11 @@ class VLMPrompter:
         os.makedirs(self.task_dir, exist_ok=True)
 
         # Reset hierarchical summary
-        with open(os.path.join(self.task_dir, execution_history), 'w') as f:
+        with open(os.path.join(self.task_dir, execution_history), 'w', encoding='utf-8') as f:
             f.write("")
-        with open(os.path.join(self.task_dir, "failure_skill.txt"), 'w') as f:
+        with open(os.path.join(self.task_dir, "failure_skill.txt"), 'w', encoding='utf-8') as f:
             f.write("")
-        with open(os.path.join(self.task_dir, "failure_reason.txt"), 'w') as f:
+        with open(os.path.join(self.task_dir, "failure_reason.txt"), 'w', encoding='utf-8') as f:
             f.write("")
 
         # Load prompts JSON file
@@ -83,7 +83,7 @@ class VLMPrompter:
         Reads the content of a JSON file and returns it as a Python dictionary.
         """
         try:
-            with open(file_path, 'r') as file:
+            with open(file_path, "r", encoding="utf-8") as file:
                 return json.load(file)
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON from file {file_path}: {e}")
@@ -95,7 +95,7 @@ class VLMPrompter:
     def read_file(file_path):
         """Reads the content of a file and returns it as a string."""
         try:
-            with open(file_path, 'r') as file:
+            with open(file_path, "r", encoding="utf-8") as file:
                 return file.read()
         except Exception as e:
             print(f"Error reading file {file_path}: {e}")
@@ -427,10 +427,10 @@ class VLMPrompter:
 
         response_file = os.path.join(save_dir, 'response.json')
         if os.path.exists(response_file):
-            with open(response_file, 'r') as f:
+            with open(response_file, "r", encoding="utf-8") as f:
                 output = json.load(f)
 
-        with open(response_file, 'w') as f:
+        with open(response_file, "w", encoding="utf-8") as f:
             output[key] = {
                 'prompt': prompt,
                 'sampling_params': sampling_params,
